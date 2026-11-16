@@ -1,0 +1,33 @@
+name: Refresh film data
+
+# Rebuilds data.js from Wikidata every night and commits it.
+# GitHub Pages then redeploys the site automatically from the main branch.
+on:
+  schedule:
+    - cron: "17 7 * * *"   # 07:17 UTC daily
+  workflow_dispatch:        # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build data.js
+        run: python3 build_data.py
+      - name: Commit if anything changed
+        run: |
+          if git diff --quiet -- data.js; then
+            echo "No changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.js
+          git commit -m "Refresh film data $(date -u +%F)"
+          git push
