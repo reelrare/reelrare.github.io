@@ -186,6 +186,8 @@ GENRES = [
     ("Q1342372", "Name a monster movie"), ("Q846544", "Name a disaster movie"),
     ("Q3072049", "Name a zombie movie"), ("Q853630", "Name a slasher movie"),
     ("Q1341051", "Name a post-apocalyptic movie"), ("Q319221", "Name an adventure movie"),
+    ("Q20443008", "Name a dystopian movie"), ("Q102429885", "Name a coming-of-age movie"),
+    ("Q2143665", "Name a kids' movie"),
 ]
 ROMCOMS = ("Q118612349", "Q860626")   # two Wikidata items for "romantic comedy"
 SETTINGS = [
@@ -195,10 +197,15 @@ SETTINGS = [
 ]
 SUBJECTS = [
     ("Q182154", "Name a movie about time travel"), ("Q362", "Name a World War II movie"),
-    ("Q2447078", "Name a movie about an alien invasion"), ("Q484188", "Name a movie about a serial killer"),
+    ("Q484188", "Name a movie about a serial killer"),
+    ("Q361", "Name a World War I movie"), ("Q8683", "Name a Cold War movie"),
+    ("Q45393", "Name a pirate movie"), ("Q44512", "Name a movie about a deadly outbreak"),
+    ("Q11416", "Name a gambling movie"),
     ("Q430", "Name a movie with dinosaurs"), ("Q11660", "Name a movie about artificial intelligence"),
     ("Q46952", "Name a mob movie"), ("Q1712140", "Name a revenge movie"),
 ]
+# Several Wikidata topics merged into one clue
+MERGED_SUBJECTS = [(("Q2447078", "Q181508"), "Name a movie about aliens", "aliens")]   # alien invasion + extraterrestrial life
 ANIMATED_TYPES = "wd:Q29168811 wd:Q202866 wd:Q20650540"
 
 # Clues a casual movie fan might not get, removed on purpose (kept here so it's easy to change).
@@ -211,9 +218,18 @@ SKIP_CLUES = {
     "Name a movie starring Sigourney Weaver", "Name a movie starring Gwyneth Paltrow",
     "Name a movie starring Halle Berry", "Name a movie starring Jeremy Renner", "Name a movie starring Cate Blanchett",
     "Name a movie directed by Ridley Scott", "Name a movie directed by Robert Zemeckis",
+    "Name a movie starring Stan Lee",          # cameos only
+    "Name a Disney Renaissance movie",         # Wikidata lists only 4 of the 10 films
 }
 # Only Disney is a studio most people can name films for.
-STUDIO_CLUES = {"Walt Disney Pictures": "Name a Disney movie"}
+STUDIO_CLUES = {"Walt Disney Pictures": "Name a Disney movie", "Pixar": "Name a Pixar movie",
+                "Walt Disney Animation Studios": "Name a Disney animated movie"}
+# Answers Wikidata has wrong for a clue (title must match exactly)
+BAD_ANSWERS = {
+    "Name a Pixar movie": {"Care Bears: Journey to Joke-a-lot", "Planes", "Planes: Fire & Rescue",
+                           "Buzz Lightyear of Star Command: The Adventure Begins"},  # not Pixar films
+    "Name a Toy Story movie": {"Buzz Lightyear of Star Command: The Adventure Begins"},          # TV pilot
+}
 
 # Each day: 5 broad clues + 2 about a big franchise or a famous name, in shuffled order.
 # Within a slot a category is picked first, then a clue, so year clues (one option in one
@@ -275,7 +291,12 @@ def pick_oscars(questions, film_rows):
         n = len(q["a"])
         award_end = max(1, min(30, math.ceil(0.60 * n)))
         deep = q["a"][award_end:] or q["a"][-1:]
-        findable = [i for i in deep if film_rows[i][2] >= 5000] or deep
+        if q["kind"] in ("series", "studio"):
+            # small franchises: widen to everything below the Studio Film band
+            deep = q["a"][max(1, min(10, math.ceil(0.35 * n))):] or deep
+        # franchises/studios: the jackpot must be a proper, widely covered entry (not a TV special)
+        bar = 10000 if q["kind"] in ("series", "studio") else 5000
+        findable = [i for i in deep if film_rows[i][2] >= bar] or [i for i in deep if film_rows[i][2] >= 5000] or deep
         q["o"] = random.Random("oscar-" + q["key"]).choice(findable)
 
 
@@ -330,9 +351,12 @@ SELECT ?f (COUNT(DISTINCT ?g) AS ?n) WHERE {{
     questions = []
 
     def add(kind, text, film_ids, key):
-        valid = [f for f in set(film_ids) if f in films]
+        bad = BAD_ANSWERS.get(text, set())
+        valid = [f for f in set(film_ids) if f in films and films[f]["label"] not in bad]
         mainstream = sum(1 for f in valid if films[f]["s"] >= MAINSTREAM_SITELINKS)
-        if len(valid) >= MIN_ANSWERS and mainstream >= MIN_MAINSTREAM:
+        # franchises and single studios are small but famous: a lower bar
+        need_all, need_main = (4, 4) if kind in ("series", "studio") else (MIN_ANSWERS, MIN_MAINSTREAM)
+        if len(valid) >= need_all and mainstream >= need_main:
             questions.append({"kind": kind, "text": text, "ids": valid, "key": key})
 
     def films_with(pattern):
@@ -387,6 +411,11 @@ SELECT DISTINCT ?f ?x WHERE {{
 }}""")
     for x, text in SUBJECTS:
         add("subject", text, [qid(r["f"]) for r in rows if qid(r["x"]) == x], f"subject:{x}")
+    for ids, text, key in MERGED_SUBJECTS:
+        vals = " ".join("wd:" + i for i in ids)
+        add("subject", text, films_with("VALUES ?x { %s } ?f wdt:P921 ?x." % vals), f"subject:{key}")
+    add("subject", "Name a movie based on a comic book",
+        films_with("?f wdt:P144 ?src. ?src wdt:P31/wdt:P279* wd:Q1004."), "subject:comics")
 
     # Year clues: 2010 onward only (decades and single years)
     by_year, by_decade = defaultdict(list), defaultdict(list)
@@ -413,7 +442,7 @@ SELECT DISTINCT ?f ?x WHERE {{
     # --- a smaller set about big franchises and very famous names
     specs = [
         ("director", "wdt:P57", 80, "", "Name a movie directed by {}"),
-        ("actor", "wdt:P161", 120, "?p wdt:P31 wd:Q5. FILTER NOT EXISTS {{ ?p wdt:P106 wd:Q82955 }}",
+        ("actor", "wdt:P161", 90, "?p wdt:P31 wd:Q5. FILTER NOT EXISTS {{ ?p wdt:P106 wd:Q82955 }}",
          "Name a movie starring {}"),
         ("studio", "wdt:P272", 40, "", "Name a {} movie"),
         ("series", "wdt:P179", 15, "", "Name a {} movie"),
@@ -448,7 +477,9 @@ SELECT DISTINCT ?f ?x WHERE {{
                     if not (q["kind"] == "actor" and q["text"].rsplit("starring ", 1)[1] in director_names)]
     # people/franchise clues need more famous answers than broad ones to count as mainstream
     def famous_enough(q):
-        if q["kind"] in ("director", "actor", "author", "studio", "series"):
+        if q["kind"] in ("studio", "series"):
+            return sum(1 for f in q["ids"] if films[f]["s"] >= 60) >= 3
+        if q["kind"] in ("director", "actor", "author"):
             return sum(1 for f in q["ids"] if films[f]["s"] >= 60) >= 5
         return True
     questions[:] = [q for q in questions if famous_enough(q) and q["text"] not in SKIP_CLUES]
