@@ -464,13 +464,19 @@ function dist(a, b, max) { // Damerau-Levenshtein with early exit
   }
   return prev[b.length];
 }
+const digits = s => (s.match(/\d+/g) || []).join(",");
 // typos allowed, by length of the squashed title
 const slack = n => n.length >= 20 ? 3 : n.length >= 11 ? 2 : n.length >= 5 ? 1 : 0;
 // well-known films, for telling "real film that doesn't fit" apart from "not a film" despite typos
 const known = films.map((f, i) => i).filter(i => films[i][2] >= 15000);
 
 // → {film, ok}  ok=true: valid answer. ok=false: a real film that doesn't fit. null: unrecognised.
+// common shorthand players type
+const SHORTHAND = { lotr: "lord of the rings", hp: "harry potter", potc: "pirates of the caribbean", gotg: "guardians of the galaxy",
+  mi: "mission impossible", t2: "terminator 2", t3: "terminator 3", sw: "star wars", esb: "the empire strikes back",
+  rotk: "return of the king", bttf: "back to the future", jp: "jurassic park", jw: "jurassic world", ff: "fast and furious" };
 function resolve(text, q) {
+  text = text.replace(/[a-z0-9]+/gi, w => SHORTHAND[w.toLowerCase()] || w);
   const cleaned = text.replace(/[\s(]*\b(19|20)\d{2}\)?\s*$/, "");      // "Dune 2021" → Dune
   const ins = keys(cleaned).length ? keys(cleaned) : keys(text);
   if (!ins.length) return null;
@@ -479,15 +485,16 @@ function resolve(text, q) {
   for (const n of ins) { const hit = (byName.get(n) || []).find(i => valid.has(i)); if (hit !== undefined) return { film: hit, ok: true }; }
   // 2. just the main title or just the subtitle ("fellowship of the ring")
   for (const i of q.a) if (ins.some(n => parts[i].includes(n))) return { film: i, ok: true };
-  // 3. small typos
-  for (const i of q.a) if (ins.some(n => { const k = slack(n); return k && names[i].some(m => dist(n, m, k) <= k); })) return { film: i, ok: true };
+  // 3. small typos, but the numbers must match ("jurassic world 2" is never Jurassic World)
+  const typo = (n, m) => { const k = slack(n); return k && digits(n) === digits(m) && dist(n, m, k) <= k; };
+  for (const i of q.a) if (ins.some(n => names[i].some(m => typo(n, m)))) return { film: i, ok: true };
+  // the exact title of some other film: judge that film ("titanic" is Titanic, not Titanic 666)
+  for (const n of ins) { const e = byName.get(n); if (e) return { film: e[0], ok: false }; }
   // 4. the start of a title ("mission impossible", "harry potter") → best-known valid film starting that way
   for (const i of q.a) if (ins.some(n => n.length >= 6 && names[i].some(m => m.startsWith(n)))) return { film: i, ok: true };
   // 5. the end of a title ("sorcerers stone", "deathly hallows part 2")
   for (const i of q.a) if (ins.some(n => n.length >= 8 && names[i].some(m => m.endsWith(n)))) return { film: i, ok: true };
-  // not a valid answer: is it at least a real film?
-  for (const n of ins) { const e = byName.get(n); if (e) return { film: e[0], ok: false }; }
-  for (const i of known) if (ins.some(n => { const k = slack(n); return k && names[i].some(m => dist(n, m, k) <= k); })) return { film: i, ok: false };
+  for (const i of known) if (ins.some(n => names[i].some(m => slack(n) && digits(n) === digits(m) && dist(n, m, slack(n)) <= slack(n)))) return { film: i, ok: false };
   return null;
 }
 window.__reelResolve = (text, key) => { const q = D.questions.find(q => q.key === key); const r = q && resolve(text, q); return r && { title: films[r.film][0], year: films[r.film][1], ok: r.ok }; };

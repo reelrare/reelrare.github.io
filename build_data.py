@@ -123,8 +123,10 @@ SELECT ?f ?label ?s ?date WHERE {{
     for f in films.values():
         if f["first"] and f["first"] <= today:
             f["year"] = int(f["first"][:4])
-        # every year it was released in (festival premiere, wide release...) counts for year clues
-        f["years"] = sorted({int(d[:4]) for d in f.get("dates", ()) if d <= today})
+        # its premiere year and the year after both count (festival premiere, then wide release),
+        # but not re-releases years later (Interstellar's IMAX re-release isn't "a 2025 movie")
+        f["years"] = sorted({int(d[:4]) for d in f.get("dates", ())
+                             if d <= today and f["year"] and int(d[:4]) - f["year"] <= 1})
     # Drop items that are also typed as something that isn't a feature film:
     # short film, animated short, TV film, TV special, video album, music video, unreleased film project
     print("non-feature items to exclude...", flush=True)
@@ -179,7 +181,7 @@ DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.js")
 DAILY_AHEAD = 30   # days of daily puzzles scheduled in advance
 DAILY_SIZE = 7
 MIN_SMALL_ANSWERS = 5   # franchises and directors need at least this many films to be scheduled
-VIEWS_MIN_MAJOR = 6     # films in at least this many big Wikipedias get page views looked up
+VIEWS_MIN_MAJOR = 12    # films in at least this many big Wikipedias get page views looked up (the rest are estimated)
 # Most points a film can earn, by its fame rank among all films: (tier, films in that group).
 # 1 = Blockbuster, 2 = Studio Film, 3 = Award Movie; everything else can reach Indie. Must match index.html.
 FAME_CAPS = [(1, 500), (2, 2000), (3, 6000)]
@@ -262,6 +264,12 @@ EXTRA_ANSWERS = {
     "Name a movie set in London": ["Peter Pan"],
     "Name a mob movie": ["Goodfellas", "The Irishman", "Donnie Brasco", "Road to Perdition", "Mean Streets",
                          "The Untouchables", "American Gangster", "Black Mass"],
+}
+# Titles that settle a topic clue by themselves
+SUBJECT_TITLE_WORDS = {
+    "Q430": r"jurassic|dinosaur|land before time",
+    "Q45393": r"\bpirates?\b",
+    "Q182154": r"back to the future|time machine|\bterminator\b",
 }
 ROMCOMS = ("Q118612349", "Q860626")   # two Wikidata items for "romantic comedy"
 SETTINGS = [
@@ -678,7 +686,8 @@ def main():
         if k in views:
             lv = math.log10(views[k] + 10)
             # brand-new releases get a burst of attention that doesn't mean people know them yet
-            return lv - 0.5 if films[k]["year"] >= this_year - 1 else lv
+            age = this_year - films[k]["year"]
+            return lv - (1.0 if age <= 0 else 0.5 if age == 1 else 0)
         m = major.get(k, 0)
         near = [est[x] for x in sorted(est, key=lambda x: abs(x - m))[:1]]
         return min(near[0], 1 + 0.2 * m) if near and m < VIEWS_MIN_MAJOR else (near[0] if near else 1 + 0.2 * m)
@@ -819,6 +828,9 @@ SELECT DISTINCT ?f ?x WHERE {{
 }}""")
     for x, text in SUBJECTS:
         extra = by_genre_words(SUBJECT_WORDS[x]) if x in SUBJECT_WORDS else []
+        if x in SUBJECT_TITLE_WORDS:     # Jurassic World: Fallen Kingdom is plainly a dinosaur movie
+            rx = re.compile(SUBJECT_TITLE_WORDS[x], re.I)
+            extra += [k for k, f in films.items() if rx.search(f["label"])]
         add("subject", text, [qid(r["f"]) for r in rows if qid(r["x"]) == x] + extra, f"subject:{x}")
     for ids, text, key in MERGED_SUBJECTS:
         vals = " ".join("wd:" + i for i in ids)
@@ -1002,6 +1014,37 @@ SELECT ?f ?alt WHERE {{
                 and alt not in aliases[k] and len(aliases[k]) < 8:
             aliases[k].append(alt)
 
+    # ---- numbered sequels: films in a franchise numbered by release order, so "Harry Potter 3"
+    # finds Prisoner of Azkaban and "Alien 2" finds Aliens. Franchises come from Wikidata series and
+    # from shared title prefixes ("Pirates of the Caribbean: ..."). Never shadows a real title.
+    print("numbered sequels...", flush=True)
+    real_titles = {re.sub(r"[^a-z0-9]", "", f["label"].lower()) for f in films.values()}
+    groups = defaultdict(set)
+    for r in sparql(f"""
+SELECT ?f ?s ?sl WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?n. FILTER(?n >= {MIN_SITELINKS})
+  ?f wdt:P179 ?s. ?s rdfs:label ?sl. FILTER(LANG(?sl) = "en")
+}}"""):
+        name = re.sub(r"(?i)\s*(film series|series|franchise|\(film series\)|in film|trilogy)$", "", r["sl"]).strip()
+        name = re.sub(r"(?i)^the\s+", "", name)
+        if qid(r["f"]) in films and 3 <= len(name) <= 40 and not re.search(r"(?i)universe|\blist\b|phase", name):
+            groups[name].add(qid(r["f"]))
+    for k, f in films.items():
+        m = re.match(r"^(?:The\s+)?(.{3,40}?)\s*[:–—]\s+", f["label"])
+        if m:
+            groups[m.group(1).strip()].add(k)
+    for name, members in groups.items():
+        ordered = sorted((k for k in members if films[k]["first"]), key=lambda k: films[k]["first"])
+        if not 2 <= len(ordered) <= 12:
+            continue
+        for n, k in enumerate(ordered, start=1):
+            alias = f"{name} {n}"
+            if n == 1 or re.sub(r"[^a-z0-9]", "", alias.lower()) in real_titles:
+                continue
+            if alias not in aliases[k] and alias != films[k]["label"]:
+                aliases[k].append(alias)
+
     # ---- compact output: films as array, answers as indices sorted by popularity
     order = sorted(films, key=lambda k: -films[k]["pop"])
     index = {k: i for i, k in enumerate(order)}
@@ -1061,7 +1104,7 @@ SELECT DISTINCT ?f ?a ?cs ?charl WHERE {{
         "built": datetime.date.today().isoformat(),
         "source": "Wikidata (CC0). Popularity = English Wikipedia page views blended with coverage across the 20 largest Wikipedias.",
         "films": [[films[k]["label"], films[k]["year"], films[k]["pop"], films[k]["cap"]] for k in order],
-        "aliases": {str(index[k]): v for k, v in aliases.items() if k in index},
+        "aliases": {str(index[k]): v for k, v in aliases.items() if k in index and v},
         "questions": [
             {"kind": q["kind"], "text": q["text"], "key": q["key"], **({"r": 1} if q.get("retired") else {}),
              "a": sorted((index[i] for i in q["ids"]),
