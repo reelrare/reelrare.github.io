@@ -154,7 +154,8 @@ button.go:hover{background:#ffe0a1}
 .ticket .pts{font:700 15px var(--body);margin-top:4px}
 .ticket .why{font-size:13px;margin-top:4px;opacity:.8}
 @keyframes issue{from{transform:translateY(-36px) scaleY(.6);opacity:0}to{transform:none;opacity:1}}
-@media (prefers-reduced-motion:reduce){.ticket{animation:none}.bulb.now{animation:none}.mascot .fig,.mascot .sparkle{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.ticket{animation:none}.bulb.now{animation:none}.mascot .fig,.mascot .sparkle{animation:none!important}
+  .frame.now,.frame.just,.leader .sweep,.rframe{animation:none!important}}
 .bg-t0{background:var(--t0);color:#fff}.bg-t1{background:var(--t1)}.bg-t2{background:var(--t2)}.bg-t3{background:var(--t3)}.bg-t4{background:var(--t4)}.bg-t5{background:var(--t5)}
 
 .answers{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:26px}
@@ -166,11 +167,63 @@ button.go:hover{background:#ffe0a1}
 button.plain{font:700 16px var(--body);background:none;color:var(--text);border:2px solid var(--text-dim);padding:10px 18px;border-radius:3px;cursor:pointer}
 button.plain:hover{border-color:var(--text)}
 
+/* film strip (game screens): seven frames with sprocket holes */
+.strip7{position:relative;display:flex;gap:6px;margin:-4px -2px 12px;padding:9px 8px;background:#0b0406;border-radius:3px}
+.strip7::before,.strip7::after{content:"";position:absolute;left:6px;right:6px;height:4px;background:repeating-linear-gradient(90deg,#3b2a2d 0 6px,transparent 6px 12px)}
+.strip7::before{top:2px}.strip7::after{bottom:2px}
+.frame{flex:1;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;border-radius:2px;background:#1d1214;color:#5f4a4d;font:900 15px var(--display)}
+.frame.now{color:var(--beam);box-shadow:inset 0 0 0 2px var(--beam);animation:flicker 1.4s steps(3,jump-none) infinite}
+.frame.dev{font-size:18px;color:#24090f}
+.frame.dev.t0{color:#fff;font:900 16px var(--display)}
+.frame.t0{background:var(--t0)}.frame.t1{background:var(--t1)}.frame.t2{background:var(--t2)}.frame.t3{background:var(--t3)}.frame.t4{background:var(--t4)}.frame.t5{background:var(--t5);box-shadow:0 0 10px rgba(255,207,77,.8)}
+.frame.just{animation:develop 1.1s ease-out both}
+@keyframes flicker{50%{opacity:.55}}
+@keyframes develop{from{filter:brightness(.15) sepia(1) contrast(1.6);transform:scale(.85)}60%{filter:brightness(1.4) sepia(.3)}to{filter:none;transform:none}}
+
+/* film-leader countdown */
+.caption.play{align-items:center}
+.leader{position:relative;flex:none;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;overflow:hidden;
+  background:linear-gradient(#1b0d10,#1b0d10) center/1.5px 100% no-repeat,linear-gradient(#1b0d10,#1b0d10) center/100% 1.5px no-repeat,#ece6db;
+  box-shadow:0 0 0 3px #1b0d10,inset 0 0 0 7px #ece6db,inset 0 0 0 8.5px #1b0d10}
+.leader .sweep{position:absolute;inset:0;background:conic-gradient(rgba(27,13,16,.34) 0 100deg,transparent 100deg);animation:sweep 1s linear infinite}
+.leader b{position:relative;font:900 30px/1 var(--display);color:#1b0d10;background:#ece6db;padding:0 3px;border-radius:3px}
+.leader.low{background:linear-gradient(#5a0f17,#5a0f17) center/1.5px 100% no-repeat,linear-gradient(#5a0f17,#5a0f17) center/100% 1.5px no-repeat,#ffd6cc}
+.leader.low b{background:#ffd6cc;color:#7a0d18}
+@keyframes sweep{to{transform:rotate(360deg)}}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* results: highlight reel + tap-to-expand breakdown */
+.reel{margin:22px -16px 0;overflow-x:auto;scrollbar-width:none}
+.reel::-webkit-scrollbar{display:none}
+.reel-track{position:relative;display:flex;gap:6px;min-width:600px;width:100%;justify-content:center;padding:12px 16px;background:#0b0406}
+.reel-track::before,.reel-track::after{content:"";position:absolute;left:8px;right:8px;height:5px;background:repeating-linear-gradient(90deg,#3b2a2d 0 7px,transparent 7px 14px)}
+.reel-track::before{top:3px}.reel-track::after{bottom:3px}
+.rframe{flex:1 1 0;min-width:0;min-height:118px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px 6px;border:0;border-radius:3px;cursor:pointer;color:#24090f;font:13px/1.25 var(--body);text-align:center;animation:roll .7s var(--d,0ms) cubic-bezier(.2,.8,.3,1) both}
+.rframe .ri{font-size:24px;line-height:1}
+.rframe b{font:900 15px/1.05 var(--display);letter-spacing:.3px}
+.rframe small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12px}
+.rframe.bg-t0{color:#fff}
+@keyframes roll{from{transform:translateX(90px);opacity:0;filter:brightness(.2) sepia(1)}to{transform:none;opacity:1;filter:none}}
+.rrow{width:100%;display:grid;grid-template-columns:12px 1fr auto;gap:12px;align-items:baseline;padding:10px 0;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.rrow:hover .q{color:var(--text)}
+.rrow[aria-expanded=true] .q{color:var(--text)}
+.detail{padding:4px 0 14px 24px}
+.mine-line{margin:0 0 10px;color:var(--text-dim);font-size:15px}
+.mine-line b{color:var(--text)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:3px;border:2px solid var(--c);background:transparent;color:var(--text);font:700 13px var(--body);cursor:pointer}
+.chip span{font-weight:400;color:var(--text-dim)}
+.chip[aria-pressed=true]{background:var(--c);color:#24090f}
+.chip[aria-pressed=true] span{color:#24090f}
+.dlist{margin:10px 0 6px;padding-left:22px;columns:2 220px;column-gap:20px;font-size:14px;color:var(--text-dim)}
+.dlist li{break-inside:avoid;margin-bottom:2px}
+.dlist li.mine{color:var(--text);font-weight:700}
+.dlist em{font-style:normal;font-weight:400;color:var(--t5)}
 /* results */
 .stubs{display:flex;justify-content:center;gap:6px;margin-top:22px}
 .stub{width:34px;height:52px;border-radius:3px;-webkit-mask:radial-gradient(circle at 50% 0,transparent 6px,#000 6.5px);mask:radial-gradient(circle at 50% 0,transparent 6px,#000 6.5px)}
 .recap{list-style:none;padding:0;margin:24px 0 0}
-.recap li{display:grid;grid-template-columns:12px 1fr auto;gap:12px;align-items:baseline;padding:10px 0;border-bottom:1px solid rgba(251,238,232,.15);font-size:15px}
+.recap > li{border-bottom:1px solid rgba(251,238,232,.15);font-size:15px}
 .recap .sw{width:12px;height:12px;border-radius:2px;align-self:center}
 .recap .q{color:var(--text-dim)}
 .recap .a{text-align:right}
@@ -635,13 +688,19 @@ const unlockBanner = fresh => fresh.length ? `<div class="unlock" role="status">
 /* ---- rendering ---- */
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const title = i => `${esc(films[i][0])} (${films[i][1]})`;
-function marquee(text, cls = "") {
-  const bulbs = Array.from({ length: ROUND }, (_, k) => {
+// The film strip: one frame per clue. Answered frames are "developed" in their tier's colour.
+function filmStrip(justDeveloped = -1) {
+  const frames = Array.from({ length: ROUND }, (_, k) => {
     const a = G.answers[k];
-    return `<span class="bulb ${a ? "t" + a.t : k === G.i && !G.done ? "now" : ""}"></span>`;
+    if (a) return `<span class="frame dev t${a.t}${k === justDeveloped ? " just" : ""}">${a.t ? FRAME_ICON[a.t] : "✕"}</span>`;
+    return `<span class="frame${k === G.i && !G.done ? " now" : ""}">${k + 1}</span>`;
   }).join("");
-  return `<div class="marquee"><div class="bulbs" aria-hidden="true">${bulbs}</div><div class="board ${cls}"><p>${esc(text)}</p></div></div>`;
+  return `<div class="strip7" aria-label="Clue ${Math.min(G.i + 1, ROUND)} of ${ROUND}" role="img">${frames}</div>`;
 }
+function marquee(text, cls = "", justDeveloped = -1) {
+  return `<div class="marquee">${filmStrip(justDeveloped)}<div class="board ${cls}"><p>${esc(text)}</p></div></div>`;
+}
+const FRAME_ICON = ["", "🍿", "🎬", "🏆", "🎞️", "🌟"];
 const gameName = () => mode === "daily" ? "Daily for " + niceDay(G.day) : "Unlimited #" + G.game;
 const myLook = () => currentLook(store.get("bestStreak", 0));
 const caption = (pose = "idle", right = `Clue ${Math.min(G.i + 1, ROUND)} of ${ROUND}`) => `<div class="caption"><span>${gameName()}${mode === "unlimited" ? ` <button type="button" class="linkish" data-all>All games</button>` : ""}</span>
@@ -661,23 +720,28 @@ function render() {
   if (!G.started && G.i === 0 && !G.deadline && !G.answers.length) return renderReady();
   window.house && house.close();
   if (!G.deadline) { G.deadline = Date.now() + CLUE_SECONDS * 1000; save(); }
-  app.innerHTML = marquee(q.text) + `<div class="timer" aria-hidden="true"><span id="bar"></span></div>` + caption() + `
+  app.innerHTML = marquee(q.text) + `
+    <div class="caption play"><span>${gameName()}${mode === "unlimited" ? ` <button type="button" class="linkish" data-all>All games</button>` : ""}</span>
+      <span class="leader" id="leader" aria-hidden="true"><span class="sweep"></span><b id="leadNum">${CLUE_SECONDS}</b></span>
+      <span class="cap-mascot">${mascotSVG(myLook(), { pose: "idle", size: 58 })}</span></div>
     <form id="f" autocomplete="off">
       <label class="vh" for="in">Your answer</label>
       <div class="entry"><input id="in" type="text" placeholder="Type a film title" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="go"><button class="go" type="submit">Guess</button></div>
-      <div class="status"><span id="clock" role="timer"></span><button type="button" class="linkish" id="skip">Give up on this one</button></div>
+      <div class="status"><span id="clock" class="vh" role="timer"></span><button type="button" class="linkish" id="skip">Give up on this one</button></div>
       <div class="note" id="note" role="status"></div>
       <p class="tried" id="tried"></p>
-    </form>` + ladder();
+    </form>`;
   const inp = document.getElementById("in"), note = document.getElementById("note");
-  const bar = document.getElementById("bar"), clock = document.getElementById("clock"), tried = document.getElementById("tried");
+  const leader = document.getElementById("leader"), leadNum = document.getElementById("leadNum");
+  const clock = document.getElementById("clock"), tried = document.getElementById("tried");
   const showTried = () => { tried.textContent = G.wrong.length ? "Not it: " + G.wrong.map(i => films[i][0]).join(", ") : ""; };
   showTried();
   const tick = () => {
-    const left = Math.max(0, G.deadline - Date.now());
-    bar.style.transform = `scaleX(${left / (CLUE_SECONDS * 1000)})`;
-    bar.classList.toggle("low", left < 10000);
-    clock.textContent = `${Math.ceil(left / 1000)} seconds left`;
+    const left = Math.max(0, G.deadline - Date.now()), secs = Math.ceil(left / 1000);
+    if (leadNum.textContent !== String(secs)) leadNum.textContent = secs;
+    leader.classList.toggle("low", left < 10000);
+    // screen readers: announce at the start and as time gets short, not every second
+    if (secs === CLUE_SECONDS || secs === 10 || secs === 5) clock.textContent = `${secs} seconds left`;
     if (left <= 0) record(null, 0, true);
   };
   stopTimer(); tick();
@@ -726,7 +790,7 @@ function renderReveal(q) {
   const film = a.timeout ? "Time ran out" : a.f == null ? "You gave up on this one" : title(a.f);
   if (window.house) a.t ? house.open(TIER_COLORS[a.t], T.name) : house.close();
   const pose = a.t === 5 ? "jackpot" : a.t ? "cheer" : "sad";
-  app.innerHTML = marquee(q.text) + caption(pose) + `
+  app.innerHTML = marquee(q.text, "", G.i) + caption(pose) + `
     <div class="ticket bg-t${a.t}" role="status">
       <div class="tier">${T.name}</div>
       <div class="film">${film}</div>
@@ -767,14 +831,80 @@ function dailyStats(h) {
       </div>
     </section>`;
 }
+/* ---- results breakdown: every valid answer for a clue, grouped by tier ---- */
+// tier of every answer in q.a (same rules as tierFor, but in one pass so big lists stay fast)
+function tierList(q) {
+  const n = q.a.length, cuts = CUTS.map(([c, f]) => Math.max(1, Math.min(c, Math.ceil(f * n))));
+  const out = new Array(n);
+  let rank = 0;
+  for (let p = 0; p < n; p++) {
+    const i = q.a[p];
+    if (p > 0 && films[i][2] !== films[q.a[p - 1]][2]) rank = p;   // ties share the better rank
+    let t = 4;
+    for (let c = 0; c < cuts.length; c++) if (rank < cuts[c]) { t = c + 1; break; }
+    out[p] = i === q.o ? 5 : t;
+  }
+  return out;
+}
+const detailState = {};
+const PAGE = 30;
+function renderDetail(k) {
+  const q = D.questions[G.qs[k]], a = G.answers[k], st = detailState[k];
+  const tiers = tierList(q), groups = [[], [], [], [], [], []];
+  q.a.forEach((i, p) => groups[tiers[p]].push(p));          // positions, so lists can show overall rank
+  const list = groups[st.tier], shown = list.slice(0, st.shown), rest = list.length - shown.length;
+  const n = q.a.length.toLocaleString();
+  const mine = a.f != null && a.t ? (a.t === 5 ? `Your pick: <b>${title(a.f)}</b>, the one jackpot film among ${n} answers.`
+      : `Your pick: <b>${title(a.f)}</b>, ${TIERS[a.t].name}, the ${ordinal(q.a.indexOf(a.f) + 1)} best-known of ${n} answers.`)
+    : `You didn't score on this one. ${n} films fit this clue.`;
+  document.getElementById("detail" + k).innerHTML = `
+    <p class="mine-line">${mine}</p>
+    <div class="chips" role="group" aria-label="Show answers by tier">${[1, 2, 3, 4, 5].map(t => `
+      <button class="chip" data-tier="${t}" data-k="${k}" aria-pressed="${t === st.tier}" style="--c:var(--t${t})">${TIERS[t].name}<span>${groups[t].length.toLocaleString()}</span></button>`).join("")}</div>
+    <ol class="dlist">${shown.map(p => { const i = q.a[p];
+      return `<li value="${p + 1}"${i === a.f ? ` class="mine"` : ""}>${title(i)}${i === a.f ? " <em>your pick</em>" : ""}</li>`; }).join("")}</ol>
+    ${rest > 0 ? `<button class="linkish" data-more="${k}">Show ${Math.min(PAGE, rest)} more (${rest.toLocaleString()} left)</button>` : ""}`;
+}
+function toggleDetail(k, forceOpen = false) {
+  const box = document.getElementById("detail" + k), row = app.querySelector(`.rrow[data-clue="${k}"]`);
+  if (!box || !row) return;
+  const open = forceOpen || box.hidden;
+  if (open) {
+    const a = G.answers[k];
+    detailState[k] ||= { tier: a.t || 1, shown: PAGE };
+    renderDetail(k);
+  }
+  box.hidden = !open;
+  row.setAttribute("aria-expanded", open);
+  return row;
+}
+app.addEventListener("click", e => {
+  if (!G || !G.done) return;
+  const clue = e.target.closest("[data-clue]"), chip = e.target.closest("[data-tier]"), more = e.target.closest("[data-more]");
+  if (chip) { const k = +chip.dataset.k; detailState[k].tier = +chip.dataset.tier; detailState[k].shown = PAGE; renderDetail(k); }
+  else if (more) { const k = +more.dataset.more; detailState[k].shown += PAGE; renderDetail(k); }
+  else if (clue) {
+    const k = +clue.dataset.clue, fromReel = clue.classList.contains("rframe");
+    const row = toggleDetail(k, fromReel);
+    if (fromReel && row) row.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
+
 function renderEnd() {
   window.house && house.close();
+  for (const k in detailState) delete detailState[k];
   const h = mode === "daily" ? history() : null;
   const fresh = h ? takeNewUnlocks(h.best) : [];
   app.innerHTML = marquee(total() + " pts", "score") + caption(total() > 0 ? "cheer" : "sad", `Out of ${ROUND * 100}`) + unlockBanner(fresh) + `
-    <div class="stubs" aria-hidden="true">${G.answers.map(a => `<span class="stub bg-t${a.t}"></span>`).join("")}</div>
-    <ul class="recap">${G.answers.map((a, k) => `<li><span class="sw bg-t${a.t}"></span><span class="q">${esc(D.questions[G.qs[k]].text)}</span>
-      <span class="a">${a.timeout ? "Time ran out" : a.f == null ? "No answer" : title(a.f)}<small>${TIERS[a.t].name}${a.t ? ", " + TIERS[a.t].pts : ""}</small></span></li>`).join("")}</ul>
+    <section class="reel" aria-label="Your highlight reel"><div class="reel-track">${G.answers.map((a, k) => `
+      <button class="rframe bg-t${a.t}" data-clue="${k}" style="--d:${k * 110}ms" aria-label="Clue ${k + 1}: ${TIERS[a.t].name}. Show every answer">
+        <span class="ri" aria-hidden="true">${a.t ? FRAME_ICON[a.t] : "✕"}</span><b>${TIERS[a.t].name}</b>
+        <small>${a.f == null ? (a.timeout ? "Time ran out" : "No answer") : esc(films[a.f][0])}</small></button>`).join("")}</div></section>
+    <p class="count">Tap any clue to see every answer and where yours ranked.</p>
+    <ul class="recap">${G.answers.map((a, k) => `<li>
+      <button class="rrow" data-clue="${k}" aria-expanded="false" aria-controls="detail${k}"><span class="sw bg-t${a.t}"></span><span class="q">${esc(D.questions[G.qs[k]].text)}</span>
+      <span class="a">${a.timeout ? "Time ran out" : a.f == null ? "No answer" : title(a.f)}<small>${TIERS[a.t].name}${a.t ? ", " + TIERS[a.t].pts : ""}</small></span></button>
+      <div class="detail" id="detail${k}" hidden></div></li>`).join("")}</ul>
     ${mode === "daily" ? `<p class="next">Next daily in <b id="countdown">${untilMidnight()}</b></p>` + dailyStats(h) : ""}
     <div class="center"><button class="plain" id="cp">Share my results</button>
       ${mode === "unlimited" ? `<button class="plain" data-all>All games</button>` : `<button class="plain" data-home>Home</button>`}
