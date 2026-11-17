@@ -174,6 +174,8 @@ SELECT ?f ?p ?plabel ?ps WHERE {{
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.js")
 DAILY_AHEAD = 30   # days of daily puzzles scheduled in advance
+DAILY_SIZE = 7
+GAMES_PER_CLUE = 5  # Unlimited games: about 5 passes through every clue
 
 # Broad, everyday categories. Every ID here was checked against Wikidata.
 # Genres use direct genre tags only: Wikidata's genre hierarchy is too tangled to follow
@@ -283,6 +285,7 @@ SKIP_CLUES = {
     "Name a movie directed by Robert Zemeckis",
     "Name a movie starring Stan Lee",          # cameos only
     "Name a Disney Renaissance movie",         # Wikidata lists only 4 of the 10 films
+    "Name a Dollars movie",                    # the "Dollars Trilogy" isn't a name most people know
 }
 # Only Disney is a studio most people can name films for.
 STUDIO_CLUES = {"Walt Disney Pictures": "Name a Disney movie", "Pixar": "Name a Pixar movie",
@@ -434,6 +437,47 @@ SELECT ?f (COUNT(DISTINCT ?w) AS ?major) WHERE {{
     return {qid(r["f"]): int(r["major"]) for r in rows}
 
 
+def plan_games(questions):
+    """Numbered Unlimited games (#1, #2, ...), the same for everyone. Games already published in the
+    previous data.js are kept exactly as they were (if all their clues still exist), so a nightly data
+    refresh never changes a game; new games are appended. Each game avoids clues used in the games just
+    before it, so a clue comes back only after roughly all the others have been used."""
+    import random
+    keys = {q["key"] for q in questions}
+    old = []
+    if os.path.exists(DATA_PATH):
+        try:
+            with open(DATA_PATH, encoding="utf-8") as fh:
+                old = json.loads(fh.read().split("=", 1)[1].strip().rstrip(";")).get("games", [])
+        except (ValueError, IndexError):
+            old = []
+    by_kind = defaultdict(list)
+    for q in questions:
+        by_kind[q["kind"]].append(q["key"])
+    target = max(len(old), GAMES_PER_CLUE * (len(questions) // DAILY_SIZE))
+    window = max(1, len(questions) // DAILY_SIZE - 1)   # games a clue must wait before coming back
+    games = []
+    for n in range(1, target + 1):
+        prev = old[n - 1] if n <= len(old) else None
+        if prev and all(k in keys for k in prev):
+            games.append(prev)
+            continue
+        recent = {k for g in games[-window:] for k in g}
+        rnd = random.Random(f"reelrare-unlimited-{n}")
+        picks = []
+        for slot in DAILY_SLOTS:
+            kinds = [kd for kd in slot if any(k not in picks and k not in recent for k in by_kind.get(kd, []))]
+            if kinds:
+                pool = [k for k in by_kind[rnd.choice(kinds)] if k not in picks and k not in recent]
+            else:   # this slot's categories are used up for now: any fresh clue, else any clue
+                pool = ([q["key"] for q in questions if q["key"] not in picks and q["key"] not in recent]
+                        or [q["key"] for q in questions if q["key"] not in picks])
+            picks.append(rnd.choice(pool))
+        rnd.shuffle(picks)
+        games.append(picks)
+    return games
+
+
 def main():
     films = load_films()
     print(f"film pool: {len(films)}")
@@ -467,7 +511,7 @@ SELECT ?f (COUNT(DISTINCT ?g) AS ?n) WHERE {{
         mainstream = sum(1 for f in valid if films[f]["s"] >= MAINSTREAM_SITELINKS)
         # franchises and single studios are small but famous: a lower bar
         # small but famous sets (franchises, a hand-picked director, record-breakers) get a lower bar
-        need_all, need_main = ((3, 3) if kind == "director" else
+        need_all, need_main = ((3, 3) if kind in ("director", "series") else
                                (4, 3) if kind in ("series", "studio", "record", "people")
                                else (MIN_ANSWERS, MIN_MAINSTREAM))
         if len(valid) >= need_all and mainstream >= need_main:
@@ -648,7 +692,7 @@ SELECT DISTINCT ?f ?prev WHERE {{
     # --- a smaller set about big franchises and very famous names
     specs = [
         ("director", "wdt:P57", 30, "", "Name a movie directed by {}"),
-        ("actor", "wdt:P161", 90, "?p wdt:P31 wd:Q5. FILTER NOT EXISTS {{ ?p wdt:P106 wd:Q82955 }}",
+        ("actor", "wdt:P161|wdt:P725", 90, "?p wdt:P31 wd:Q5. FILTER NOT EXISTS {{ ?p wdt:P106 wd:Q82955 }}",
          "Name a movie starring {}"),
         ("studio", "wdt:P272", 40, "", "Name a {} movie"),
         ("series", "wdt:P179", 15, "", "Name a {} movie"),
@@ -656,18 +700,23 @@ SELECT DISTINCT ?f ?prev WHERE {{
     ]
     for kind, prop, ms, extra, tmpl in specs:
         print(f"{kind}...", flush=True)
-        for k, g in relation(prop, ms, extra).items():
+        rel = relation(prop, ms, extra)
+        by_label = {g["label"]: g["films"] for g in rel.values()}
+        for k, g in rel.items():
             label = g["label"]
             if kind == "director" and label not in DIRECTORS:
                 continue
             if kind == "studio":
                 if label in STUDIOS and STUDIOS[label] in STUDIO_CLUES.values() or label in STUDIO_CLUES:
-                    add(kind, STUDIO_CLUES.get(label, label), g["films"], f"{kind}:{k}")
+                    ids = set(g["films"])
+                    if label == "Walt Disney Pictures":   # people call Frozen and Toy Story Disney movies too
+                        ids |= by_label.get("Walt Disney Animation Studios", set()) | by_label.get("Pixar", set())
+                    add(kind, STUDIO_CLUES.get(label, label), ids, f"{kind}:{k}")
                 continue
             if kind == "series":
                 if re.search(r"(?i)\blist\b|greatest|\bbest\b|\btop\b|\bphase\b|\b\d{2,}\b", label):
                     continue  # ranked lists, not franchises
-                for suffix in (" film series", " series", " franchise", " (film series)", " in film"):
+                for suffix in (" film series", " series", " franchise", " (film series)", " in film", " trilogy"):
                     if label.lower().endswith(suffix):
                         label = label[: -len(suffix)]
                 if label.lower().startswith("the "):
@@ -675,6 +724,12 @@ SELECT DISTINCT ?f ?prev WHERE {{
                 if label.endswith("Universe"):
                     add(kind, f"Name a movie in the {label}", g["films"], f"{kind}:{k}")
                     continue
+                # franchise lists in Wikidata have holes: any film with the franchise name in its
+                # title counts too (Spider-Man: Across the Spider-Verse, The Lego Batman Movie...)
+                if len(label) >= 4:
+                    # title is the franchise name, or it followed by a colon/dash/number (Alien 3, Alien: Romulus)
+                    rx = re.compile(r"^(the )?" + re.escape(label) + r"(\s*[:\-–—]|\s+\d|\s+(part|chapter)\b|$)", re.I)
+                    g = dict(g, films=set(g["films"]) | {fk for fk, f in films.items() if rx.search(f["label"])})
             text = tmpl.format(label)
             if kind in ("studio", "series"):
                 text = text.replace("Name a ", "Name " + article(label) + " ", 1)
@@ -733,7 +788,8 @@ SELECT ?f ?alt WHERE {{
     }
     pick_oscars(out["questions"], out["films"])
     out["daily"] = plan_daily(out["questions"])
-    out["slots"] = DAILY_SLOTS   # Unlimited mode deals rounds with the same mix
+    out["slots"] = DAILY_SLOTS
+    out["games"] = plan_games(out["questions"])
     with open(DATA_PATH, "w", encoding="utf-8") as fh:
         fh.write("window.REEL_DATA = ")
         json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))

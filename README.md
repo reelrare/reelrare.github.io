@@ -1,6 +1,6 @@
 # Reel Rare
 
-A daily film trivia game. Each clue asks you to name a movie that fits it ("Name a horror movie", "Name a movie set in Paris"). You have 30 seconds per clue and unlimited guesses. Any correct film scores, and the less obvious your pick, the more it's worth:
+A daily film trivia game. Each clue asks you to name a movie that fits it ("Name a horror movie", "Name a movie set in Paris"). You have 30 seconds per clue and unlimited guesses. Typing is forgiving: small typos, missing punctuation, "2" for "II" and alternate titles all count. Any correct film scores, and the less obvious your pick, the more it's worth:
 
 | Tier | Points | Your film's rank among the clue's answers |
 |---|---|---|
@@ -12,7 +12,7 @@ A daily film trivia game. Each clue asks you to name a movie that fits it ("Name
 
 Short answer lists scale these ranks down so the tiers still spread out. When you get one right, the curtains open and the screen lights up in your tier's colour.
 
-Daily gives everyone the same 7 clues each day (mostly broad categories, plus a franchise or famous name); Unlimited deals a fresh 7 every round.
+Daily gives everyone the same 7 clues each day. Unlimited has 130 numbered games (also the same for everyone), and its page shows which ones you've finished and your score on each.
 
 ## How it works
 

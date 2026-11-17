@@ -107,6 +107,19 @@ button.plain:hover{border-color:var(--text)}
 .recap .a small{display:block;color:var(--text-dim)}
 .stats{display:flex;justify-content:center;gap:34px;margin-top:20px;text-align:center;color:var(--text-dim);font-size:14px}
 .stats b{display:block;font:900 30px/1.1 var(--display);color:var(--text)}
+/* Unlimited page: one ticket-like tile per numbered game */
+.games{list-style:none;padding:0;margin:26px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px}
+.tile{width:100%;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 6px 8px;cursor:pointer;
+  background:rgba(0,0,0,.35);color:var(--text);border:2px solid rgba(251,238,232,.18);border-radius:4px;font:15px var(--body)}
+.tile:hover{border-color:var(--text-dim)}
+.tile .num{font:900 24px/1 var(--display);letter-spacing:.5px}
+.tile .sub{font-size:12px;color:var(--text-dim);min-height:16px}
+.tile .strip{display:flex;gap:2px;width:100%;height:6px}
+.tile .strip i{flex:1;border-radius:1px}
+.tile .strip i:not([class]), .tile .strip i[class=""]{background:rgba(251,238,232,.12)}
+.tile.done{border-color:var(--bulb)}
+.tile.done .num{color:var(--bulb)}
+.tile.going{border-style:dashed;border-color:var(--text-dim)}
 footer{margin-top:44px;text-align:center;font-size:13px;color:#b8918d}
 footer a{color:inherit}
 @media (max-width:520px){
@@ -254,14 +267,27 @@ const store = {
   set(k, v) { try { localStorage.setItem("reelrare:" + k, JSON.stringify(v)); } catch {} },
 };
 
-/* ---- recognising a typed title (no suggestions are shown) ---- */
-const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
-  .replace(/&/g, " and ").replace(/['’`]/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/^(the|a|an) /, "");
-const names = films.map((f, i) => [norm(f[0]), ...((D.aliases && D.aliases[i]) || []).map(norm)].filter(Boolean));
+/* ---- recognising a typed title (no suggestions are shown) ----
+   Every title (and alternate title) gets a couple of "keys": lower-case, no accents or punctuation,
+   no spaces, without little words (the/a/an/and/of/part/episode...), and with Roman numerals and
+   number words turned into digits. So "rocky 2" = Rocky II, "godfather part 2" = The Godfather Part II,
+   "oceans 11" = Ocean's Eleven, "spiderman" = Spider-Man, "et" = E.T. */
+const STOP = new Set(["the", "a", "an", "and", "of", "part", "chapter", "episode", "volume", "vol"]);
+const ROMAN = { ii: "2", iii: "3", iv: "4", v: "5", vi: "6", vii: "7", viii: "8", ix: "9", x: "10", xi: "11", xii: "12" };
+const NUMWORD = { one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9",
+  ten: "10", eleven: "11", twelve: "12", thirteen: "13", twenty: "20", hundred: "100", thousand: "1000" };
+const tokens = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+  .replace(/&/g, " and ").replace(/['’`]/g, "").split(/[^a-z0-9]+/).filter(Boolean);
+function keys(s) {
+  const t = tokens(s).filter(w => !STOP.has(w));
+  const plain = t.join(""), nums = t.map(w => ROMAN[w] || NUMWORD[w] || w).join("");
+  return plain === nums ? (plain ? [plain] : []) : [plain, nums].filter(Boolean);
+}
+const names = films.map((f, i) => [...new Set([f[0], ...((D.aliases && D.aliases[i]) || [])].flatMap(keys))]);
 const byName = new Map();
 names.forEach((list, i) => list.forEach(n => { const a = byName.get(n); if (a) { if (a[a.length - 1] !== i) a.push(i); } else byName.set(n, [i]); }));
-// main title / subtitle of "Title: Subtitle" — only used among a clue's valid answers
-const parts = films.map(f => { const m = f[0].split(/\s*[:–—]\s+|\s+-\s+/); return m.length > 1 ? m.map(norm).filter(p => p.length >= 4) : []; });
+// main title / subtitle of "Title: Subtitle" (only used among a clue's valid answers)
+const parts = films.map(f => { const m = f[0].split(/\s*[:–—]\s+|\s+-\s+/); return m.length > 1 ? m.flatMap(keys).filter(p => p.length >= 4) : []; });
 
 function dist(a, b, max) { // Damerau-Levenshtein with early exit
   if (Math.abs(a.length - b.length) > max) return max + 1;
@@ -278,23 +304,33 @@ function dist(a, b, max) { // Damerau-Levenshtein with early exit
   }
   return prev[b.length];
 }
-const slack = n => n.length >= 14 ? 2 : n.length >= 5 ? 1 : 0;
+// typos allowed, by length of the squashed title
+const slack = n => n.length >= 20 ? 3 : n.length >= 11 ? 2 : n.length >= 5 ? 1 : 0;
+// well-known films, for telling "real film that doesn't fit" apart from "not a film" despite typos
+const known = films.map((f, i) => i).filter(i => films[i][2] >= 3000);
 
 // → {film, ok}  ok=true: valid answer. ok=false: a real film that doesn't fit. null: unrecognised.
 function resolve(text, q) {
-  const n = norm(text.replace(/[\s(]*\b(19|20)\d{2}\)?\s*$/, "")) || norm(text); if (!n) return null;
+  const cleaned = text.replace(/[\s(]*\b(19|20)\d{2}\)?\s*$/, "");      // "Dune 2021" → Dune
+  const ins = keys(cleaned).length ? keys(cleaned) : keys(text);
+  if (!ins.length) return null;
   const valid = new Set(q.a);
-  const exact = byName.get(n) || [];
-  const hit = exact.find(i => valid.has(i));            // films are sorted most-known first
-  if (hit !== undefined) return { film: hit, ok: true };
-  for (const i of q.a) if (parts[i].includes(n)) return { film: i, ok: true };
-  const k = slack(n);
-  if (k) for (const i of q.a) if (names[i].some(m => dist(n, m, k) <= k)) return { film: i, ok: true };
-  // "mission impossible" → the best-known valid film whose title starts with those words
-  if (n.length >= 6) for (const i of q.a) if (names[i].some(m => m.startsWith(n + " "))) return { film: i, ok: true };
-  if (exact.length) return { film: exact[0], ok: false };
+  // 1. exact title or alternate title (films are sorted most-known first)
+  for (const n of ins) { const hit = (byName.get(n) || []).find(i => valid.has(i)); if (hit !== undefined) return { film: hit, ok: true }; }
+  // 2. just the main title or just the subtitle ("fellowship of the ring")
+  for (const i of q.a) if (ins.some(n => parts[i].includes(n))) return { film: i, ok: true };
+  // 3. small typos
+  for (const i of q.a) if (ins.some(n => { const k = slack(n); return k && names[i].some(m => dist(n, m, k) <= k); })) return { film: i, ok: true };
+  // 4. the start of a title ("mission impossible", "harry potter") → best-known valid film starting that way
+  for (const i of q.a) if (ins.some(n => n.length >= 6 && names[i].some(m => m.startsWith(n)))) return { film: i, ok: true };
+  // 5. the end of a title ("sorcerers stone", "deathly hallows part 2")
+  for (const i of q.a) if (ins.some(n => n.length >= 8 && names[i].some(m => m.endsWith(n)))) return { film: i, ok: true };
+  // not a valid answer: is it at least a real film?
+  for (const n of ins) { const e = byName.get(n); if (e) return { film: e[0], ok: false }; }
+  for (const i of known) if (ins.some(n => { const k = slack(n); return k && names[i].some(m => dist(n, m, k) <= k); })) return { film: i, ok: false };
   return null;
 }
+window.__reelResolve = (text, key) => { const q = D.questions.find(q => q.key === key); const r = q && resolve(text, q); return r && { title: films[r.film][0], year: films[r.film][1], ok: r.ok }; };
 
 function tierFor(q, i) {
   const pos = q.a.indexOf(i); if (pos < 0) return 0;
@@ -346,44 +382,53 @@ function dailyClues(day) {
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const niceDay = iso => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric" });
 
+// Numbered Unlimited games come from the list the build script fixes (same for everyone)
+const GAMES = D.games || [];
+function gameClues(n) {
+  const qs = (GAMES[n - 1] || []).map(k => qByKey.get(k));
+  return qs.length === ROUND && qs.every(i => i !== undefined) ? qs : makeRound(rng("reelrare-unlimited-" + n));
+}
+
 let mode = "daily", G = null;
-function start(m) {
-  mode = m; stopTimer();
+function setTabs(m) {
   document.getElementById("mDaily").setAttribute("aria-pressed", m === "daily");
   document.getElementById("mUnl").setAttribute("aria-pressed", m === "unlimited");
+}
+function start(m) {
+  mode = m; stopTimer(); setTabs(m);
   if (m === "daily") {
-    const day = today();
-    G = loadDaily(day) || { day, qs: dailyClues(day), i: 0, answers: [], wrong: [], deadline: null, done: false };
-  } else {
-    // Unlimited never repeats a clue until you've seen them all, and skips today's daily clues
-    let seen = new Set(store.get("seen", []).map(k => qByKey.get(k)).filter(i => i !== undefined));
-    const todays = new Set(dailyClues(today()));
-    let avoid = new Set([...seen, ...todays]);
-    if (D.questions.length - avoid.size < ROUND) { seen = new Set(); avoid = todays; }
-    const qs = makeRound(Math.random, avoid);
-    store.set("seen", [...seen, ...qs].map(i => D.questions[i].key));
-    G = { qs, i: 0, answers: [], wrong: [], deadline: null, done: false };
+    const day = today(), slot = "daily2:" + day;
+    G = loadState(slot) || { slot, day, qs: dailyClues(day), i: 0, answers: [], wrong: [], deadline: null, done: false };
+    G.day = day;
+    return render();
   }
+  renderGames();
+}
+function startGame(n) {
+  mode = "unlimited"; stopTimer(); setTabs("unlimited");
+  const slot = "unl2:" + n;
+  G = loadState(slot) || { slot, qs: gameClues(n), i: 0, answers: [], wrong: [], deadline: null, done: false };
+  G.game = n;
   render();
+  window.scrollTo({ top: 0 });
 }
 // Saved progress uses stable ids (question key, "title|year"), not array positions,
 // because positions change whenever the film data is rebuilt.
 const filmId = i => films[i][0] + "|" + films[i][1];
 const qByKey = new Map(D.questions.map((q, i) => [q.key, i]));
 let filmById = null;
-function loadDaily(day) {
-  const s = store.get("daily2:" + day, null);
+function loadState(slot) {
+  const s = store.get(slot, null);
   if (!s) return null;
   const qs = s.keys.map(k => qByKey.get(k));
   if (qs.some(i => i === undefined)) return null;
   filmById ||= new Map(films.map((f, i) => [f[0] + "|" + f[1], i]).reverse());
   const answers = s.answers.map(a => ({ f: a.id == null ? null : filmById.get(a.id) ?? null, t: a.t, timeout: !!a.timeout }));
-  return { day, qs, i: s.i, answers, done: s.done, reveal: s.reveal, deadline: s.deadline || null,
+  return { slot, qs, i: s.i, answers, done: s.done, reveal: s.reveal, deadline: s.deadline || null,
     wrong: (s.wrong || []).map(id => filmById.get(id)).filter(i => i !== undefined) };
 }
 const save = () => {
-  if (mode !== "daily") return;
-  store.set("daily2:" + G.day, { keys: G.qs.map(i => D.questions[i].key), i: G.i, done: G.done, reveal: G.reveal,
+  store.set(G.slot, { keys: G.qs.map(i => D.questions[i].key), i: G.i, done: G.done, reveal: G.reveal,
     deadline: G.deadline, wrong: G.wrong.map(filmId),
     answers: G.answers.map(a => ({ id: a.f == null ? null : filmId(a.f), t: a.t, timeout: !!a.timeout })) });
 };
@@ -396,7 +441,6 @@ function next() {
   G.reveal = false; G.i++;
   if (G.i >= ROUND) {
     G.done = true;
-    if (mode === "unlimited") { const st = store.get("unl", { played: 0, best: 0, total: 0 }); st.played++; st.total += total(); st.best = Math.max(st.best, total()); store.set("unl", st); }
   }
   save(); render();
 }
@@ -411,7 +455,10 @@ function marquee(text, cls = "") {
   }).join("");
   return `<div class="marquee"><div class="bulbs" aria-hidden="true">${bulbs}</div><div class="board ${cls}"><p>${esc(text)}</p></div></div>`;
 }
-const caption = () => `<div class="caption"><span>${mode === "daily" ? "Daily for " + niceDay(G.day) : "Unlimited"}</span><span>Clue ${Math.min(G.i + 1, ROUND)} of ${ROUND}</span></div>`;
+const gameName = () => mode === "daily" ? "Daily for " + niceDay(G.day) : "Unlimited #" + G.game;
+const caption = () => `<div class="caption"><span>${gameName()}${mode === "unlimited" ? ` <button type="button" class="linkish" data-all>All games</button>` : ""}</span><span>Clue ${Math.min(G.i + 1, ROUND)} of ${ROUND}</span></div>`;
+// "All games" links (delegated, so it works wherever a caption is drawn)
+document.addEventListener("click", e => { if (e.target.closest("[data-all]")) { stopTimer(); start("unlimited"); } });
 const ladder = () => `<ul class="ladder">${[1, 2, 3, 4, 5].map(t => `<li style="border-color:var(--t${t})"><b>${TIERS[t].name}</b>${TIERS[t].pts} points</li>`).join("")}</ul>`;
 
 function render() {
@@ -477,24 +524,63 @@ function renderReveal(q) {
 }
 
 function shareText() {
-  return `Reel Rare ${mode === "daily" ? niceDay(G.day) : "(unlimited)"}\n${G.answers.map(a => SHARE[a.t]).join("")}\n${total()} points`;
+  return `Reel Rare ${mode === "daily" ? niceDay(G.day) : "Unlimited #" + G.game}\n${G.answers.map(a => SHARE[a.t]).join("")}\n${total()} points`;
 }
 function renderEnd() {
   window.house && house.close();
-  const st = store.get("unl", { played: 0, best: 0, total: 0 });
   app.innerHTML = marquee(total() + " pts", "score") + `
-    <div class="caption"><span>${mode === "daily" ? "Daily for " + niceDay(G.day) : "Unlimited round"}</span><span>Out of ${ROUND * 100}</span></div>
+    <div class="caption"><span>${gameName()}</span><span>Out of ${ROUND * 100}</span></div>
     <div class="stubs" aria-hidden="true">${G.answers.map(a => `<span class="stub bg-t${a.t}"></span>`).join("")}</div>
     <ul class="recap">${G.answers.map((a, k) => `<li><span class="sw bg-t${a.t}"></span><span class="q">${esc(D.questions[G.qs[k]].text)}</span>
       <span class="a">${a.timeout ? "Time ran out" : a.f == null ? "No answer" : title(a.f)}<small>${TIERS[a.t].name}${a.t ? ", " + TIERS[a.t].pts : ""}</small></span></li>`).join("")}</ul>
-    ${mode === "unlimited"
-      ? `<div class="stats"><span><b>${st.played}</b>rounds played</span><span><b>${st.best}</b>best score</span><span><b>${st.played ? Math.round(st.total / st.played) : 0}</b>average</span></div>`
-      : `<p class="count">A new set of seven clues arrives at midnight.</p>`}
-    <div class="center"><button class="plain" id="cp">Copy my results</button><button class="go" id="again" style="padding:10px 26px">${mode === "unlimited" ? "Play another round" : "Play Unlimited"}</button></div>`;
+    ${mode === "daily" ? `<p class="count">A new set of seven clues arrives at midnight.</p>` : ""}
+    <div class="center"><button class="plain" id="cp">Copy my results</button>
+      ${mode === "unlimited" ? `<button class="plain" data-all>All games</button>` : ""}
+      <button class="go" id="again" style="padding:10px 26px">${mode === "unlimited" ? "Next game" : "Play Unlimited"}</button></div>`;
   document.getElementById("cp").addEventListener("click", async e => {
     try { await navigator.clipboard.writeText(shareText()); e.target.textContent = "Copied"; } catch { e.target.textContent = "Couldn't copy"; }
   });
-  document.getElementById("again").addEventListener("click", () => start("unlimited"));
+  document.getElementById("again").addEventListener("click", () => {
+    if (mode !== "unlimited") return start("unlimited");
+    const n = nextUnplayed(G.game);
+    n ? startGame(n) : start("unlimited");
+  });
+}
+
+/* ---- the Unlimited page: every numbered game, with what you've finished ---- */
+function gameStatus(n) {
+  const s = store.get("unl2:" + n, null);
+  if (!s) return { state: "new" };
+  const score = (s.answers || []).reduce((t, a) => t + TIERS[a.t].pts, 0);
+  return { state: s.done ? "done" : "going", score, tiers: (s.answers || []).map(a => a.t) };
+}
+function nextUnplayed(after = 0) {
+  for (let k = 1; k <= GAMES.length; k++) { const n = ((after + k - 1) % GAMES.length) + 1; if (gameStatus(n).state !== "done") return n; }
+  return null;
+}
+function renderGames() {
+  window.house && house.close();
+  G = null;
+  const st = Array.from({ length: GAMES.length }, (_, k) => gameStatus(k + 1));
+  const done = st.filter(x => x.state === "done");
+  const best = done.reduce((m, x) => Math.max(m, x.score), 0);
+  const avg = done.length ? Math.round(done.reduce((t, x) => t + x.score, 0) / done.length) : 0;
+  const nxt = nextUnplayed(0);
+  const going = st.findIndex(x => x.state === "going") + 1;
+  app.innerHTML = `
+    <div class="marquee"><div class="bulbs" aria-hidden="true">${"<span class='bulb t5'></span>".repeat(ROUND)}</div>
+      <div class="board"><p>Unlimited</p></div></div>
+    <div class="caption"><span>${GAMES.length} games, the same for everyone</span></div>
+    <div class="stats"><span><b>${done.length}</b>${done.length === 1 ? "game" : "games"} finished</span><span><b>${best}</b>best score</span><span><b>${avg}</b>average</span></div>
+    <div class="center">${going && going !== nxt ? `<button class="plain" data-game="${going}">Continue #${going}</button>` : ""}
+      ${nxt ? `<button class="go" data-game="${nxt}" style="padding:10px 26px">${nxt === going ? "Continue" : "Play"} game #${nxt}</button>` : `<p class="count">You've finished every game. New ones arrive as clues are added.</p>`}</div>
+    <ol class="games" aria-label="All Unlimited games">${st.map((x, k) => `
+      <li><button class="tile ${x.state}" data-game="${k + 1}" aria-label="Game ${k + 1}${x.state === "done" ? `, finished, ${x.score} points` : x.state === "going" ? ", in progress" : ""}">
+        <span class="num">#${k + 1}</span>
+        <span class="sub">${x.state === "done" ? x.score + " pts" : x.state === "going" ? "In progress" : "&nbsp;"}</span>
+        <span class="strip">${x.state === "new" ? "" : Array.from({ length: ROUND }, (_, j) => `<i class="${x.tiers[j] !== undefined ? "bg-t" + x.tiers[j] : ""}"></i>`).join("")}</span>
+      </button></li>`).join("")}</ol>`;
+  app.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => startGame(+b.dataset.game)));
 }
 
 document.getElementById("mDaily").addEventListener("click", () => start("daily"));
