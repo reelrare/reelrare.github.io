@@ -22,6 +22,8 @@ PREFIX wikibase: <http://wikiba.se/ontology#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
 PREFIX schema: <http://schema.org/>
+PREFIX p: <http://www.wikidata.org/prop/>
+PREFIX psv: <http://www.wikidata.org/prop/statement/value/>
 """
 UA = "ReelRareBuilder/1.0 (film trivia data build)"
 MIN_SITELINKS = 6
@@ -106,17 +108,20 @@ SELECT ?f ?label ?s ?date WHERE {{
 }}""")
         for r in rows:
             k = qid(r["f"])
-            f = films.setdefault(k, {"label": r["label"], "s": int(r["s"]), "year": None, "first": None})
+            f = films.setdefault(k, {"label": r["label"], "s": int(r["s"]), "year": None, "first": None, "dates": set()})
             if is_qid(f["label"]) and not is_qid(r["label"]):
                 f["label"] = r["label"]  # some items carry a bogus label that is just their ID
             d = r["date"][:10]
             if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) and d >= "1880":
                 f["first"] = d if f["first"] is None else min(f["first"], d)
+                f["dates"].add(d)
     # Year = earliest release/premiere date; films whose first release is still in the future are dropped.
     today = datetime.date.today().isoformat()
     for f in films.values():
         if f["first"] and f["first"] <= today:
             f["year"] = int(f["first"][:4])
+        # every year it was released in (festival premiere, wide release...) counts for year clues
+        f["years"] = sorted({int(d[:4]) for d in f.get("dates", ()) if d <= today})
     # Drop items that are also typed as something that isn't a feature film:
     # short film, animated short, TV film, TV special, video album, music video, unreleased film project
     print("non-feature items to exclude...", flush=True)
@@ -189,6 +194,64 @@ GENRES = [
     ("Q20443008", "Name a dystopian movie"), ("Q102429885", "Name a coming-of-age movie"),
     ("Q2143665", "Name a kids' movie"),
 ]
+# Extra genre names that also count for a genre clue (matched against Wikidata genre names)
+GENRE_WORDS = {
+    "Q188473": r"\baction", "Q157443": r"comedy", "Q471839": r"science fiction|sci-fi|space opera|cyberpunk",
+    "Q200092": r"horror|slasher", "Q1054574": r"romance|romantic", "Q1535153": r"superhero",
+    "Q842256": r"musical", "Q369747": r"\bwar film|war drama|anti-war", "Q172980": r"western",
+    "Q28026639": r"christmas", "Q2297927": r"\bspy|espionage", "Q157394": r"fantasy",
+    "Q2484376": r"thriller", "Q3072049": r"zombie", "Q846544": r"disaster",
+    "Q20443008": r"dystopi", "Q102429885": r"coming-of-age|coming of age",
+    "Q2143665": r"children|family|animat|anime",   # kids' movie: family and animated films count
+}
+# Genres that also count for a topic clue
+SUBJECT_WORDS = {
+    "Q362": r"world war ii", "Q361": r"world war i(?!i)", "Q8683": r"cold war", "Q45393": r"pirate|swashbuckler",
+    "Q46952": r"gangster|mafia|\bmob\b|yakuza", "Q182154": r"time travel", "Q484188": r"serial killer|slasher",
+    "Q44512": r"pandemic|epidemic|outbreak|zombie", "Q11416": r"gambling|casino|poker", "Q430": r"dinosaur",
+}
+# Well-known films that clearly fit a clue but that Wikidata doesn't tag that way.
+# Added on top of the Wikidata answers (never removes anything). Titles as in Wikidata; if several
+# films share a title, the best-known one is used. Titles not found are reported by the build.
+EXTRA_ANSWERS = {
+    "Name a movie about time travel": [
+        "Looper", "Groundhog Day", "Avengers: Endgame", "Edge of Tomorrow", "Tenet", "Interstellar",
+        "Hot Tub Time Machine", "About Time", "Source Code", "Palm Springs", "Happy Death Day",
+        "Men in Black 3", "X-Men: Days of Future Past", "Midnight in Paris", "12 Monkeys",
+        "Back to the Future Part II", "Back to the Future Part III", "Bill & Ted's Excellent Adventure"],
+    "Name a World War II movie": [
+        "Dunkirk", "Fury", "Darkest Hour", "The Imitation Game", "Jojo Rabbit", "Pearl Harbor", "The Pianist",
+        "Life Is Beautiful", "The Great Escape", "Letters from Iwo Jima", "Flags of Our Fathers", "Valkyrie",
+        "Unbroken", "Hacksaw Ridge", "Grave of the Fireflies", "The Boy in the Striped Pajamas",
+        "Captain America: The First Avenger", "Oppenheimer", "Inglourious Basterds", "Saving Private Ryan"],
+    "Name a movie with a U.S. president as a character": [
+        "Air Force One", "Independence Day", "Olympus Has Fallen", "White House Down", "Dave",
+        "The American President", "Don't Look Up", "Lincoln", "Frost/Nixon", "JFK", "Nixon", "Jackie",
+        "Thirteen Days", "W.", "Abraham Lincoln: Vampire Hunter", "Forrest Gump"],
+    "Name a movie about aliens": [
+        "Close Encounters of the Third Kind", "Arrival", "District 9", "Predator", "Nope", "Lilo & Stitch",
+        "E.T. the Extra-Terrestrial", "Signs", "Men in Black", "Independence Day", "War of the Worlds",
+        "Alien", "Aliens", "Contact", "Super 8", "Paul", "Edge of Tomorrow", "A Quiet Place"],
+    "Name a movie with dinosaurs": ["The Good Dinosaur", "The Land Before Time", "Jurassic World",
+                                    "Jurassic World Dominion", "Jurassic World Rebirth"],
+    "Name a pirate movie": ["Treasure Planet", "Peter Pan", "Muppet Treasure Island", "Captain Phillips",
+                            "The Pirates! In an Adventure with Scientists!"],
+    "Name a movie about a serial killer": ["Zodiac", "Seven", "Prisoners", "Scream", "Halloween",
+                                           "No Country for Old Men", "The Lovely Bones"],
+    "Name a movie about a deadly outbreak": ["I Am Legend", "Contagion", "Outbreak", "28 Days Later",
+                                             "World War Z", "Train to Busan", "12 Monkeys", "Carriers"],
+    "Name a movie based on a comic book": ["Joker", "Joker: Folie à Deux", "Road to Perdition",
+                                           "A History of Violence", "Persepolis", "Snowpiercer", "Oldboy"],
+    "Name a coming-of-age movie": ["Lady Bird", "Eighth Grade", "Stand by Me", "Boyhood", "Superbad",
+                                   "The Perks of Being a Wallflower", "Booksmart", "Moonlight", "Call Me by Your Name"],
+    "Name a gambling movie": ["Uncut Gems", "Rounders", "Molly's Game", "Casino", "Ocean's Eleven", "Maverick"],
+    "Name a Cold War movie": ["Tinker Tailor Soldier Spy", "The Hunt for Red October", "Atomic Blonde",
+                              "Bridge of Spies", "Thirteen Days", "Dr. Strangelove", "The Man from U.N.C.L.E.",
+                              "X-Men: First Class", "Rocky IV", "Red Sparrow"],
+    "Name a thriller": ["Prisoners", "Gone Girl", "Shutter Island", "Nightcrawler", "Knives Out", "Seven"],
+    "Name a mob movie": ["Goodfellas", "The Irishman", "Donnie Brasco", "Road to Perdition", "Mean Streets",
+                         "The Untouchables", "American Gangster", "Black Mass"],
+}
 ROMCOMS = ("Q118612349", "Q860626")   # two Wikidata items for "romantic comedy"
 SETTINGS = [
     ("Q60", "New York City"), ("Q84", "London"), ("Q65", "Los Angeles"), ("Q90", "Paris"),
@@ -217,7 +280,7 @@ SKIP_CLUES = {
     "Name a movie set in Chicago", "Name a movie set in San Francisco", "Name a movie set in Washington, D.C.",
     "Name a movie starring Sigourney Weaver", "Name a movie starring Gwyneth Paltrow",
     "Name a movie starring Halle Berry", "Name a movie starring Jeremy Renner", "Name a movie starring Cate Blanchett",
-    "Name a movie directed by Ridley Scott", "Name a movie directed by Robert Zemeckis",
+    "Name a movie directed by Robert Zemeckis",
     "Name a movie starring Stan Lee",          # cameos only
     "Name a Disney Renaissance movie",         # Wikidata lists only 4 of the 10 films
 }
@@ -229,14 +292,53 @@ BAD_ANSWERS = {
     "Name a Pixar movie": {"Care Bears: Journey to Joke-a-lot", "Planes", "Planes: Fire & Rescue",
                            "Buzz Lightyear of Star Command: The Adventure Begins"},  # not Pixar films
     "Name a Toy Story movie": {"Buzz Lightyear of Star Command: The Adventure Begins"},          # TV pilot
+    "Name a movie with a U.S. president as a character": {"Milk"},   # archival footage only
+}
+
+# Directors: only household names (current) and all-time legends. Label as in Wikidata.
+DIRECTORS = {
+    "Steven Spielberg", "Christopher Nolan", "Quentin Tarantino", "Martin Scorsese", "James Cameron",
+    "Tim Burton", "Peter Jackson", "Ridley Scott", "Denis Villeneuve", "Wes Anderson", "Greta Gerwig",
+    "Jordan Peele", "Guillermo del Toro", "David Fincher",
+    "Alfred Hitchcock", "Stanley Kubrick",
+}
+
+# Clues about the title itself (computed from English titles, so always accurate)
+LETTERS = "BCDFGHJKLMNPRSTW"
+NUMBER_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+                "twelve", "thirteen", "twenty", "hundred", "thousand", "million", "first", "second", "third"]
+COLOR_WORDS = ["red", "blue", "green", "black", "white", "yellow", "orange", "purple", "pink", "gold",
+               "golden", "silver", "grey", "gray", "brown", "scarlet", "crimson"]
+ANIMAL_WORDS = ["dog", "dogs", "cat", "cats", "lion", "lions", "tiger", "tigers", "bear", "bears", "wolf",
+                "wolves", "shark", "sharks", "bird", "birds", "horse", "horses", "monkey", "monkeys", "ape",
+                "apes", "fox", "rabbit", "mouse", "mice", "rat", "rats", "snake", "snakes", "eagle", "eagles",
+                "falcon", "hawk", "crow", "raven", "duck", "ducks", "pig", "pigs", "cow", "bull", "goat",
+                "sheep", "lamb", "lambs", "deer", "elephant", "elephants", "panther", "jaguar", "leopard",
+                "zebra", "whale", "dolphin", "fish", "frog", "turtle", "turtles", "penguin", "penguins", "owl",
+                "bee", "ant", "spider", "scorpion", "gorilla", "crocodile", "chicken", "chickens", "parrot",
+                "swan", "dove", "butterfly", "wasp", "bat", "bats", "dinosaur", "dinosaurs", "kitten", "puppy",
+                "cub", "beetle", "hound", "mustang", "stallion", "raptor"]
+
+# Films from a country (country of origin)
+COUNTRIES = [("Q17", "Name a movie from Japan"), ("Q142", "Name a French movie"),
+             ("Q145", "Name a British movie"), ("Q38", "Name an Italian movie"),
+             ("Q668", "Name a movie from India")]
+# Co-productions list many countries (Ratatouille isn't Japanese), so for these the film must also be
+# in one of the country's languages.
+COUNTRY_LANGUAGES = {
+    "Q17": ["Q5287"],                       # Japanese
+    "Q142": ["Q150"],                       # French
+    "Q38": ["Q652"],                        # Italian
+    "Q668": ["Q1568", "Q5885", "Q8097", "Q36236", "Q33673", "Q9610", "Q1571", "Q58635"],  # Indian languages
 }
 
 # Each day: 5 broad clues + 2 about a big franchise or a famous name, in shuffled order.
 # Within a slot a category is picked first, then a clue, so year clues (one option in one
 # slot) come up roughly once every four days.
-DAILY_SLOTS = [["genre"], ["genre"], ["setting", "subject"], ["award", "subject", "setting", "genre"],
-               ["genre", "setting", "subject", "year"], ["series", "studio", "author", "award"],
-               ["actor", "director"]]
+DAILY_SLOTS = [["genre", "subject"], ["title", "letter", "record"], ["setting", "country", "subject"],
+               ["award", "record", "genre", "people"],
+               ["genre", "setting", "subject", "year", "title", "letter", "country"],
+               ["series", "studio", "author"], ["actor", "director", "people"]]
 
 
 def plan_daily(questions):
@@ -349,13 +451,25 @@ SELECT ?f (COUNT(DISTINCT ?g) AS ?n) WHERE {{
   ?f wdt:P31 ?t; wikibase:sitelinks ?s; wdt:P136 ?g. FILTER(?s >= {MIN_SITELINKS})
 }} GROUP BY ?f""")}
     questions = []
+    place_counts = {}
+    # title -> best-known film with that title, for EXTRA_ANSWERS
+    extra_ids = {}
+    for k in sorted(films, key=lambda k: -films[k]["pop"]):
+        extra_ids.setdefault(films[k]["label"], k)
+    missing = sorted({t for ts in EXTRA_ANSWERS.values() for t in ts if t not in extra_ids})
+    if missing:
+        print("EXTRA_ANSWERS titles not in the film list:", missing, flush=True)
 
     def add(kind, text, film_ids, key):
+        film_ids = list(film_ids) + [extra_ids[t] for t in EXTRA_ANSWERS.get(text, []) if t in extra_ids]
         bad = BAD_ANSWERS.get(text, set())
         valid = [f for f in set(film_ids) if f in films and films[f]["label"] not in bad]
         mainstream = sum(1 for f in valid if films[f]["s"] >= MAINSTREAM_SITELINKS)
         # franchises and single studios are small but famous: a lower bar
-        need_all, need_main = (4, 4) if kind in ("series", "studio") else (MIN_ANSWERS, MIN_MAINSTREAM)
+        # small but famous sets (franchises, a hand-picked director, record-breakers) get a lower bar
+        need_all, need_main = ((3, 3) if kind == "director" else
+                               (4, 3) if kind in ("series", "studio", "record", "people")
+                               else (MIN_ANSWERS, MIN_MAINSTREAM))
         if len(valid) >= need_all and mainstream >= need_main:
             questions.append({"kind": kind, "text": text, "ids": valid, "key": key})
 
@@ -380,12 +494,28 @@ SELECT DISTINCT ?f ?g WHERE {{
     by_genre = defaultdict(list)
     for r in rows:
         by_genre[qid(r["g"])].append(qid(r["f"]))
+    # Be forgiving: "supernatural horror film" and "comedy horror" also count as horror, etc.
+    tagged = sparql(f"""
+SELECT DISTINCT ?f ?gl WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
+  ?f wdt:P136 ?g. ?g rdfs:label ?gl. FILTER(LANG(?gl) = "en")
+}}""")
+    def by_genre_words(pattern):
+        rx = re.compile(pattern, re.I)
+        return [qid(r["f"]) for r in tagged if rx.search(r["gl"])]
+    animated = films_with("VALUES ?an { %s } ?f wdt:P31 ?an." % ANIMATED_TYPES)
     for g, text in GENRES:
-        add("genre", text, by_genre[g], f"genre:{g}")
+        ids = by_genre[g] + (by_genre_words(GENRE_WORDS[g]) if g in GENRE_WORDS else [])
+        if g == "Q2143665":
+            ids += animated          # every animated film counts as a kids' movie
+        add("genre", text, ids, f"genre:{g}")
     add("genre", "Name a romantic comedy",
-        films_with("VALUES ?rc { %s } ?f wdt:P136 ?rc." % " ".join("wd:" + x for x in ROMCOMS)), "genre:romcom")
+        films_with("VALUES ?rc { %s } ?f wdt:P136 ?rc." % " ".join("wd:" + x for x in ROMCOMS))
+        + by_genre_words(r"romantic comedy|rom-com"), "genre:romcom")
     add("genre", "Name an animated movie",
-        films_with("VALUES ?an { %s } ?f wdt:P31 ?an." % ANIMATED_TYPES), "genre:animated")
+        films_with("VALUES ?an { %s } ?f wdt:P31 ?an." % ANIMATED_TYPES) + by_genre_words(r"animat|anime"),
+        "genre:animated")
 
     print("settings & subjects...", flush=True)
     place_ids = " ".join("wd:" + p for p, _ in SETTINGS)
@@ -394,11 +524,12 @@ SELECT ?f ?p (COUNT(DISTINCT ?any) AS ?places) WHERE {{
   VALUES ?t {{ {FILM_TYPES} }}
   VALUES ?p {{ {place_ids} }}
   ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
-  ?f wdt:P840 ?p. ?f wdt:P840 ?any.
+  ?f wdt:P840 ?loc. ?loc wdt:P131* ?p.    # Manhattan, Brooklyn, Hollywood... count for their city
+  ?f wdt:P840 ?any.
 }} GROUP BY ?f ?p""")
-    # A film that lists many locations (e.g. a globe-trotting blockbuster with one Tokyo scene)
-    # isn't really "set in" each of them.
-    rows = [r for r in rows if int(r["places"]) <= 3]
+    # Films listing many locations still count, but rank lower (see place_score)
+    for r in rows:
+        place_counts[qid(r["f"])] = max(place_counts.get(qid(r["f"]), 0), int(r["places"]))
     for p, name in SETTINGS:
         add("setting", f"Name a movie set in {name}", [qid(r["f"]) for r in rows if qid(r["p"]) == p], f"setting:{p}")
     subj_ids = " ".join("wd:" + x for x, _ in SUBJECTS)
@@ -410,18 +541,22 @@ SELECT DISTINCT ?f ?x WHERE {{
   ?f wdt:P921 ?x.
 }}""")
     for x, text in SUBJECTS:
-        add("subject", text, [qid(r["f"]) for r in rows if qid(r["x"]) == x], f"subject:{x}")
+        extra = by_genre_words(SUBJECT_WORDS[x]) if x in SUBJECT_WORDS else []
+        add("subject", text, [qid(r["f"]) for r in rows if qid(r["x"]) == x] + extra, f"subject:{x}")
     for ids, text, key in MERGED_SUBJECTS:
         vals = " ".join("wd:" + i for i in ids)
-        add("subject", text, films_with("VALUES ?x { %s } ?f wdt:P921 ?x." % vals), f"subject:{key}")
+        add("subject", text, films_with("VALUES ?x { %s } ?f wdt:P921 ?x." % vals)
+            + by_genre_words(r"alien|extraterrestrial"), f"subject:{key}")
     add("subject", "Name a movie based on a comic book",
-        films_with("?f wdt:P144 ?src. ?src wdt:P31/wdt:P279* wd:Q1004."), "subject:comics")
+        films_with("?f wdt:P144 ?src. ?src wdt:P31/wdt:P279* wd:Q1004.") + by_genre_words(r"superhero|comic"),
+        "subject:comics")
 
     # Year clues: 2010 onward only (decades and single years)
     by_year, by_decade = defaultdict(list), defaultdict(list)
     for k, f in films.items():
-        by_year[f["year"]].append(k)
-        by_decade[f["year"] // 10 * 10].append(k)
+        for y in f.get("years") or [f["year"]]:
+            by_year[y].append(k)
+            by_decade[y // 10 * 10].append(k)
     for d in range(2010, datetime.date.today().year, 10):
         add("year", f"Name a movie from the {d}s", by_decade[d], f"decade:{d}")
     for y in range(2010, datetime.date.today().year):
@@ -439,9 +574,80 @@ SELECT DISTINCT ?f ?x WHERE {{
         ids = [qid(r["f"]) for r in rows if qid(r["a"]) == aq and r["how"] in hows]
         add("award", text, ids, f"award:{aq}:{'+'.join(sorted(hows))}")
 
+    # --- new kinds of clue
+    print("countries, records, people...", flush=True)
+    rows = sparql(f"""
+SELECT DISTINCT ?f ?c WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  VALUES ?c {{ {" ".join("wd:" + c for c, _ in COUNTRIES)} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
+  ?f wdt:P495 ?c.
+}}""")
+    lang_rows = sparql(f"""
+SELECT DISTINCT ?f ?lang WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
+  ?f wdt:P364 ?lang.
+}}""")
+    langs = defaultdict(set)
+    for r in lang_rows:
+        langs[qid(r["f"])].add(qid(r["lang"]))
+    for c, text in COUNTRIES:
+        ids = [qid(r["f"]) for r in rows if qid(r["c"]) == c]
+        if c in COUNTRY_LANGUAGES:
+            ok = set(COUNTRY_LANGUAGES[c])
+            ids = [k for k in ids if langs[k] & ok]
+        add("country", text, ids, f"country:{c}")
+    add("country", "Name a foreign-language movie",
+        films_with("?f wdt:P364 ?lang. FILTER(?lang != wd:Q1860) FILTER NOT EXISTS { ?f wdt:P364 wd:Q1860 }"),
+        "country:foreign")
+    add("record", "Name a billion-dollar movie",   # worldwide box office of $1 billion or more
+        films_with("?f p:P2142/psv:P2142 ?v. ?v wikibase:quantityAmount ?amt; wikibase:quantityUnit wd:Q4917. "
+                   "FILTER(?amt >= 1000000000)"), "record:billion")
+    add("record", "Name a movie over three hours long", films_with("?f wdt:P2047 ?m. FILTER(?m >= 180)"),
+        "record:3h")
+    add("record", "Name a black-and-white movie", films_with("?f wdt:P462 wd:Q838368."), "record:bw")
+    seq_rows = sparql(f"""
+SELECT DISTINCT ?f ?prev WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
+  ?f wdt:P155 ?prev; wdt:P179 ?series.
+}}""")
+    # released after the film it follows (Star Wars Episode IV follows Episode III in story order only)
+    add("record", "Name a sequel", [qid(r["f"]) for r in seq_rows
+                                    if qid(r["prev"]) in films and qid(r["f"]) in films
+                                    and films[qid(r["f"])]["year"] >= films[qid(r["prev"])]["year"]
+                                    and films[qid(r["f"])]["first"] > films[qid(r["prev"])]["first"]],
+        "record:sequel")
+    add("award", "Name an Oscar-winning movie",
+        films_with("?f wdt:P166 ?a. { ?a wdt:P31 wd:Q19020 } UNION { ?a wdt:P279 wd:Q19020 }"), "award:any-oscar")
+    add("people", "Name a movie directed by a woman", films_with("?f wdt:P57 ?d. ?d wdt:P21 wd:Q6581072."),
+        "people:woman-director")
+    add("people", "Name a movie with a U.S. president as a character",
+        films_with("?f wdt:P674 ?c. ?c wdt:P39 wd:Q11696."), "people:president")
+
+    # title clues, from the English titles
+    def words(label):
+        return re.findall(r"[a-z0-9]+", label.lower().replace("'", ""))
+    def title_has(word_list):
+        ws = set(word_list)
+        return [k for k, f in films.items() if ws & set(words(f["label"]))]
+    add("title", "Name a movie with a number in the title",
+        [k for k, f in films.items() if re.search(r"\d", f["label"]) or set(NUMBER_WORDS) & set(words(f["label"]))],
+        "title:number")
+    add("title", "Name a movie with a color in the title", title_has(COLOR_WORDS), "title:color")
+    add("title", "Name a movie with an animal in the title", title_has(ANIMAL_WORDS), "title:animal")
+    add("title", "Name a movie with a one-word title",
+        [k for k, f in films.items() if len(words(f["label"])) == 1 and not f["label"][:1].isdigit()], "title:oneword")
+    for L in LETTERS:
+        # counts whether or not you include a leading "The", "A" or "An"
+        ids = [k for k, f in films.items()
+               if f["label"][:1].upper() == L or re.sub(r"(?i)^(the|a|an)\s+", "", f["label"])[:1].upper() == L]
+        add("letter", f"Name a movie starting with the letter {L}", ids, f"letter:{L}")
+
     # --- a smaller set about big franchises and very famous names
     specs = [
-        ("director", "wdt:P57", 80, "", "Name a movie directed by {}"),
+        ("director", "wdt:P57", 30, "", "Name a movie directed by {}"),
         ("actor", "wdt:P161", 90, "?p wdt:P31 wd:Q5. FILTER NOT EXISTS {{ ?p wdt:P106 wd:Q82955 }}",
          "Name a movie starring {}"),
         ("studio", "wdt:P272", 40, "", "Name a {} movie"),
@@ -452,6 +658,8 @@ SELECT DISTINCT ?f ?x WHERE {{
         print(f"{kind}...", flush=True)
         for k, g in relation(prop, ms, extra).items():
             label = g["label"]
+            if kind == "director" and label not in DIRECTORS:
+                continue
             if kind == "studio":
                 if label in STUDIOS and STUDIOS[label] in STUDIO_CLUES.values() or label in STUDIO_CLUES:
                     add(kind, STUDIO_CLUES.get(label, label), g["films"], f"{kind}:{k}")
@@ -479,7 +687,9 @@ SELECT DISTINCT ?f ?x WHERE {{
     def famous_enough(q):
         if q["kind"] in ("studio", "series"):
             return sum(1 for f in q["ids"] if films[f]["s"] >= 60) >= 3
-        if q["kind"] in ("director", "actor", "author"):
+        if q["kind"] == "director":
+            return True   # hand-picked list
+        if q["kind"] in ("actor", "author"):
             return sum(1 for f in q["ids"] if films[f]["s"] >= 60) >= 5
         return True
     questions[:] = [q for q in questions if famous_enough(q) and q["text"] not in SKIP_CLUES]
@@ -502,6 +712,9 @@ SELECT ?f ?alt WHERE {{
     # ---- compact output: films as array, answers as indices sorted by popularity
     order = sorted(films, key=lambda k: -films[k]["pop"])
     index = {k: i for i, k in enumerate(order)}
+    def place_score(k):
+        return films[k]["pop"] * min(1.0, 3 / max(1, place_counts.get(k, 1)))
+
     def genre_score(k):
         return films[k]["pop"] * min(1.0, 4 / max(1, genre_counts.get(k, 1)))
 
@@ -513,7 +726,8 @@ SELECT ?f ?alt WHERE {{
         "questions": [
             {"kind": q["kind"], "text": q["text"], "key": q["key"],
              "a": sorted((index[i] for i in q["ids"]),
-                        key=lambda j: (-genre_score(order[j]) if q["kind"] == "genre" else j, j))}
+                        key=lambda j: (-genre_score(order[j]) if q["kind"] == "genre"
+                                       else -place_score(order[j]) if q["kind"] == "setting" else j, j))}
             for q in sorted(questions, key=lambda q: q["key"])
         ],
     }

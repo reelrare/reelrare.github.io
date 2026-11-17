@@ -377,7 +377,7 @@ function loadDaily(day) {
   const qs = s.keys.map(k => qByKey.get(k));
   if (qs.some(i => i === undefined)) return null;
   filmById ||= new Map(films.map((f, i) => [f[0] + "|" + f[1], i]).reverse());
-  const answers = s.answers.map(a => ({ f: a.id == null ? null : filmById.get(a.id) ?? null, t: a.t }));
+  const answers = s.answers.map(a => ({ f: a.id == null ? null : filmById.get(a.id) ?? null, t: a.t, timeout: !!a.timeout }));
   return { day, qs, i: s.i, answers, done: s.done, reveal: s.reveal, deadline: s.deadline || null,
     wrong: (s.wrong || []).map(id => filmById.get(id)).filter(i => i !== undefined) };
 }
@@ -385,7 +385,7 @@ const save = () => {
   if (mode !== "daily") return;
   store.set("daily2:" + G.day, { keys: G.qs.map(i => D.questions[i].key), i: G.i, done: G.done, reveal: G.reveal,
     deadline: G.deadline, wrong: G.wrong.map(filmId),
-    answers: G.answers.map(a => ({ id: a.f == null ? null : filmId(a.f), t: a.t })) });
+    answers: G.answers.map(a => ({ id: a.f == null ? null : filmId(a.f), t: a.t, timeout: !!a.timeout })) });
 };
 const total = () => G.answers.reduce((s, a) => s + TIERS[a.t].pts, 0);
 function record(film, t, timeout = false) {
@@ -439,7 +439,9 @@ function render() {
     clock.textContent = `${Math.ceil(left / 1000)} seconds left`;
     if (left <= 0) record(null, 0, true);
   };
-  stopTimer(); tick(); if (!G.reveal) ticker = setInterval(tick, 200);
+  stopTimer(); tick();
+  if (G.reveal) return;   // time had already run out (e.g. page reopened later): the miss is shown
+  ticker = setInterval(tick, 200);
   document.getElementById("f").addEventListener("submit", e => {
     e.preventDefault();
     const text = inp.value.trim(); if (!text) return;
