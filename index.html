@@ -880,7 +880,11 @@ function renderHome() {
   app.querySelectorAll("[data-look]:not([disabled])").forEach(b => b.addEventListener("click", () => {
     store.set("look", b.dataset.look); renderHome();
   }));
-  if (!store.get("seenRules", false)) openHowTo();      // first visit: explain the game before anything else
+  // first visit: explain the game before anything else (people who've already played skip it)
+  let played = false;
+  try { played = Object.keys(localStorage).some(k => /^reelrare:(daily2|unl2):/.test(k)); } catch {}
+  if (played && !store.get("seenRules", false)) store.set("seenRules", true);
+  if (!store.get("seenRules", false)) openHowTo();
 }
 
 /* ---- how to play pop-up ---- */
