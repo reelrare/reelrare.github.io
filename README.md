@@ -1,5 +1,7 @@
 # Reel Rare
 
+Play it at **https://reelrare.github.io/**
+
 A daily film trivia game. Each clue asks you to name a movie that fits it ("Name a horror movie", "Name a movie set in Paris"). You have 30 seconds per clue and unlimited guesses. Typing is forgiving: small typos, missing punctuation, "2" for "II" and alternate titles all count. Any correct film scores, and the less obvious your pick, the more it's worth:
 
 | Tier | Points | Your film's rank among the clue's answers |
