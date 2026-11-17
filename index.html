@@ -44,9 +44,9 @@ body.lit main{background-color:rgba(26,6,11,.88);box-shadow:0 0 60px 20px rgba(2
 
 /* top bar */
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px}
-.brand{font:900 30px/1 var(--display);letter-spacing:.5px;color:var(--bulb);text-shadow:0 0 18px rgba(255,210,122,.55)}
-.modes{display:flex;gap:4px}
-.modes button{font:700 15px var(--body);color:var(--text-dim);background:none;border:0;padding:6px 10px;cursor:pointer;border-bottom:2px solid transparent}
+.brand{font:900 30px/1 var(--display);letter-spacing:.5px;color:var(--bulb);text-shadow:0 0 18px rgba(255,210,122,.55);background:none;border:0;padding:0;cursor:pointer}
+.modes{display:flex;gap:2px}
+.modes button{font:700 15px var(--body);color:var(--text-dim);background:none;border:0;padding:6px 9px;cursor:pointer;border-bottom:2px solid transparent}
 .modes button[aria-pressed=true]{color:var(--text);border-bottom-color:var(--bulb)}
 
 /* the letterboard */
@@ -61,7 +61,60 @@ body.lit main{background-color:rgba(26,6,11,.88);box-shadow:0 0 60px 20px rgba(2
   box-shadow:inset 0 0 30px rgba(140,170,170,.35)}
 .board p{margin:0;width:100%;background:repeating-linear-gradient(to bottom,transparent 0 45px,var(--slot) 45px 47px,transparent 47px 48px);font:700 37px/48px var(--display);text-transform:uppercase;letter-spacing:1.5px;color:var(--letter)}
 .board.score p{font-size:80px;line-height:96px;background:none}
-.caption{margin:12px 2px 0;color:var(--text-dim);font-size:15px;display:flex;justify-content:space-between;gap:10px}
+.caption{margin:12px 2px 0;color:var(--text-dim);font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.caption > span:last-child{text-align:right}
+
+/* the statuette mascot (original design) */
+.mascot{display:inline-block;line-height:0}
+.mascot svg{display:block;overflow:visible}
+.mascot .fig{transform-box:fill-box;transform-origin:50% 100%}
+.mascot .arms-up,.mascot .mouth-sad{display:none}
+.mascot.locked{filter:grayscale(1) brightness(.32) contrast(1.15)}   /* a shadowy preview of a look you haven't unlocked */
+.mascot.pose-cheer .arms-up,.mascot.pose-jackpot .arms-up{display:inline}
+.mascot.pose-cheer .arms-down,.mascot.pose-jackpot .arms-down{display:none}
+.mascot.pose-sad .mouth-happy{display:none}
+.mascot.pose-sad .mouth-sad{display:inline}
+.mascot.pose-idle .fig{animation:bob 2.6s ease-in-out infinite}
+.mascot.pose-cheer .fig{animation:hop .9s ease-out 1}
+.mascot.pose-jackpot .fig{animation:spin 1.3s ease-out 1;filter:drop-shadow(0 0 8px rgba(255,207,77,.9))}
+.mascot.pose-sad .fig{animation:droop .6s ease-out forwards}
+.mascot .sparkle{animation:twinkle 1.6s ease-in-out infinite}
+.mascot .sparkle:nth-of-type(2){animation-delay:.5s}.mascot .sparkle:nth-of-type(3){animation-delay:1s}
+@keyframes bob{50%{transform:translateY(-3px)}}
+@keyframes hop{30%{transform:translateY(-14px)}55%{transform:translateY(0)}72%{transform:translateY(-5px)}}
+@keyframes spin{40%{transform:translateY(-16px) scaleX(-1)}80%{transform:translateY(0) scaleX(1)}}
+@keyframes droop{to{transform:rotate(-7deg) translateY(2px)}}
+@keyframes twinkle{50%{opacity:.15}}
+.cap-mascot{flex:none;margin:-14px 0 -6px}
+
+/* home page */
+.stage{display:flex;align-items:flex-end;justify-content:center;gap:16px;margin:24px 0 4px}
+.speech{position:relative;max-width:300px;margin:0 0 70px;padding:12px 14px;background:var(--board);color:#1b0a0e;border-radius:10px;font-size:16px;line-height:1.4}
+.speech::after{content:"";position:absolute;left:-9px;bottom:16px;border:9px solid transparent;border-right-color:var(--board);border-left:0}
+.speech b{font-weight:700}
+.home-actions{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:20px}
+.home-actions .go{padding:12px 30px;font-size:26px;min-width:260px}
+.home-actions .plain{min-width:260px}
+.home-actions small{display:block;font:400 13px var(--body);color:var(--text-dim)}
+.unlock{display:flex;align-items:center;gap:12px;margin:22px auto 0;max-width:420px;padding:10px 14px;background:rgba(255,207,77,.14);border:2px solid var(--t5);border-radius:6px}
+.unlock b{display:block;color:var(--t5);font:900 20px var(--display);letter-spacing:.5px}
+.looks{margin-top:30px}
+.looks h2{margin:0;font:900 24px var(--display);letter-spacing:.5px;color:var(--text)}
+.looks p{margin:4px 0 0;color:var(--text-dim);font-size:15px}
+.looks ul{list-style:none;padding:0;margin:14px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.look{width:100%;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px 10px;background:rgba(0,0,0,.35);color:var(--text);border:2px solid rgba(251,238,232,.18);border-radius:6px;font:13px var(--body);cursor:pointer}
+.look b{font-size:14px}
+.look small{color:var(--text-dim)}
+.look[aria-pressed=true]{border-color:var(--bulb)}
+.look:disabled{cursor:default;opacity:.85}
+
+/* how-to-play pop-up */
+#howto{width:min(520px,calc(100% - 32px));padding:22px 22px 18px;background:#1c070c;color:var(--text);border:2px solid var(--bulb);border-radius:8px;box-shadow:0 30px 80px rgba(0,0,0,.7)}
+#howto::backdrop{background:rgba(10,2,5,.78)}
+#howto h2{margin:0 0 10px;font:900 30px/1.1 var(--display);letter-spacing:.5px;color:var(--bulb)}
+#howto ul{margin:0;padding-left:20px;display:grid;gap:8px;font-size:16px}
+#howto li::marker{color:var(--bulb)}
+#howto .ladder{margin-top:18px}
 
 /* how-to-play card on the ready screen */
 .rules{margin:22px 0 4px;padding:16px 18px;background:rgba(0,0,0,.35);border-left:4px solid var(--bulb);border-radius:3px}
@@ -101,7 +154,7 @@ button.go:hover{background:#ffe0a1}
 .ticket .pts{font:700 15px var(--body);margin-top:4px}
 .ticket .why{font-size:13px;margin-top:4px;opacity:.8}
 @keyframes issue{from{transform:translateY(-36px) scaleY(.6);opacity:0}to{transform:none;opacity:1}}
-@media (prefers-reduced-motion:reduce){.ticket{animation:none}.bulb.now{animation:none}}
+@media (prefers-reduced-motion:reduce){.ticket{animation:none}.bulb.now{animation:none}.mascot .fig,.mascot .sparkle{animation:none!important}}
 .bg-t0{background:var(--t0);color:#fff}.bg-t1{background:var(--t1)}.bg-t2{background:var(--t2)}.bg-t3{background:var(--t3)}.bg-t4{background:var(--t4)}.bg-t5{background:var(--t5)}
 
 .answers{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:26px}
@@ -154,6 +207,11 @@ footer a{color:inherit}
   .bulb{width:12px;height:12px}
   .ladder{grid-template-columns:repeat(3,1fr)}
   .answers{grid-template-columns:1fr}
+  .brand{font-size:26px}
+  .modes button{padding:6px 7px;font-size:14px}
+  .stage{gap:8px}
+  .speech{font-size:15px;margin-bottom:56px}
+  .stats{gap:18px}
 }
 </style>
 </head>
@@ -161,15 +219,27 @@ footer a{color:inherit}
 <canvas id="house" aria-hidden="true"></canvas>
 <main>
   <div class="top">
-    <div class="brand">Reel Rare</div>
-    <nav class="modes" aria-label="Game mode">
-      <button id="mDaily" aria-pressed="true">Daily</button>
+    <button class="brand" data-home aria-label="Reel Rare home">Reel Rare</button>
+    <nav class="modes" aria-label="Pages">
+      <button id="mHome" aria-pressed="true">Home</button>
+      <button id="mDaily" aria-pressed="false">Daily</button>
       <button id="mUnl" aria-pressed="false">Unlimited</button>
     </nav>
   </div>
   <div id="app"><p>Loading films…</p></div>
   <footer id="foot"></footer>
 </main>
+<dialog id="howto" aria-labelledby="howtoTitle">
+  <h2 id="howtoTitle">How to play</h2>
+  <ul>
+    <li>Each clue asks for a movie, like <em>Name a horror movie</em>. Type any film that fits. There are no suggestions, but typos and missing punctuation are fine.</li>
+    <li>You get 30 seconds per clue and as many guesses as you like. The clock starts when you press Start.</li>
+    <li>Any correct film scores. The less obvious your pick, the more it's worth, and each clue hides one 100-point jackpot film.</li>
+    <li>A new daily arrives every midnight. Play every day to build a streak and unlock new looks for your statuette.</li>
+  </ul>
+  <div id="howtoLadder"></div>
+  <div class="center"><button class="go" id="howtoClose" style="padding:10px 30px">Got it</button></div>
+</dialog>
 <script src="data.js"></script>
 <script>
 /* ---------------- live background: the auditorium ---------------- */
@@ -405,7 +475,9 @@ function dailyClues(day) {
   const qs = ks ? ks.map(k => qByKey.get(k)) : null;
   return qs && qs.length && qs.every(i => i !== undefined) ? qs : makeRound(rng("reelrare-" + day));
 }
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const isoLocal = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const today = () => isoLocal(new Date());
+const shiftDay = (iso, n) => { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return isoLocal(d); };
 const niceDay = iso => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric" });
 
 // Numbered Unlimited games come from the list the build script fixes (same for everyone)
@@ -415,13 +487,16 @@ function gameClues(n) {
   return qs.length === ROUND && qs.every(i => i !== undefined) ? qs : makeRound(rng("reelrare-unlimited-" + n));
 }
 
-let mode = "daily", G = null;
+let mode = "home", G = null;
 function setTabs(m) {
+  document.getElementById("mHome").setAttribute("aria-pressed", m === "home");
   document.getElementById("mDaily").setAttribute("aria-pressed", m === "daily");
   document.getElementById("mUnl").setAttribute("aria-pressed", m === "unlimited");
 }
 function start(m) {
   mode = m; stopTimer(); setTabs(m);
+  window.scrollTo({ top: 0 });
+  if (m === "home") return renderHome();
   if (m === "daily") {
     const day = today(), slot = "daily2:" + day;
     G = loadState(slot) || { slot, day, qs: dailyClues(day), i: 0, answers: [], wrong: [], deadline: null, done: false };
@@ -471,6 +546,92 @@ function next() {
   save(); render();
 }
 
+/* ---- the statuette: an original little gold figure on a pedestal ----
+   Looks unlock with your best daily streak; you pick which one to show. */
+const LOOKS = [
+  { id: "classic", name: "Classic", need: 0, metal: "gold", acc: [] },
+  { id: "shades", name: "Cool Shades", need: 3, metal: "gold", acc: ["shades"] },
+  { id: "tophat", name: "Premiere Night", need: 7, metal: "gold", acc: ["tophat"] },
+  { id: "popcorn", name: "Popcorn Break", need: 14, metal: "gold", acc: ["popcorn"] },
+  { id: "director", name: "The Director", need: 30, metal: "gold", acc: ["beret"] },
+  { id: "silver", name: "Silver Screen", need: 60, metal: "silver", acc: ["tophat"] },
+  { id: "diamond", name: "Diamond", need: 100, metal: "diamond", acc: ["shades", "sparkles"] },
+];
+const METALS = {
+  gold: ["#fff3c4", "#f2c14e", "#a8741a"], silver: ["#ffffff", "#c7d0da", "#6f7a87"],
+  diamond: ["#f2fdff", "#8fdcff", "#3a8fc2"],
+};
+let svgId = 0;
+function mascotSVG(lookId, { pose = "idle", size = 56, locked = false, label = "" } = {}) {
+  const look = LOOKS.find(l => l.id === lookId) || LOOKS[0];
+  const [lt, md, dk] = METALS[look.metal];
+  const id = "mg" + (++svgId), fill = `url(#${id})`, acc = look.acc, ink = "#5a3a0a";
+  const arm = d => `<path d="${d}" fill="none" stroke="${fill}" stroke-width="5.5" stroke-linecap="round"/>`;
+  return `<span class="mascot pose-${locked ? "still" : pose}${locked ? " locked" : ""}" ${label ? `role="img" aria-label="${esc(label)}"` : `aria-hidden="true"`}>
+  <svg viewBox="0 0 80 110" width="${Math.round(size * 80 / 110)}" height="${size}">
+    <defs><linearGradient id="${id}" x1="0" x2="1" y1="0" y2="0.3"><stop offset="0" stop-color="${lt}"/><stop offset=".45" stop-color="${md}"/><stop offset="1" stop-color="${dk}"/></linearGradient></defs>
+    <rect x="14" y="84" width="52" height="6" rx="2" fill="#3d1820"/>
+    <rect x="18" y="89" width="44" height="18" rx="3" fill="#2b1015"/>
+    <rect x="30" y="94" width="20" height="7" rx="1" fill="${fill}"/>
+    <g class="fig">
+      <path d="M30 84 L33 56 Q40 50 47 56 L50 84 Z" fill="${fill}"/>
+      <ellipse cx="40" cy="50" rx="11" ry="13" fill="${fill}"/>
+      <g class="arms-down">${arm("M30.5 44 Q24 54 27 65")}${arm("M49.5 44 Q56 54 53 65")}</g>
+      <g class="arms-up">${arm("M30.5 44 Q21 36 23 22")}${arm("M49.5 44 Q59 36 57 22")}</g>
+      <circle cx="40" cy="27" r="11" fill="${fill}"/>
+      ${`<ellipse cx="35.5" cy="22.5" rx="2.6" ry="4.2" fill="#fff" opacity=".45"/>
+      <ellipse cx="35" cy="50" rx="2.4" ry="6" fill="#fff" opacity=".28"/>
+      <circle cx="36" cy="26" r="1.8" fill="${ink}"/><circle cx="44" cy="26" r="1.8" fill="${ink}"/>
+      <path class="mouth-happy" d="M35.5 31 Q40 35.5 44.5 31" fill="none" stroke="${ink}" stroke-width="1.6" stroke-linecap="round"/>
+      <path class="mouth-sad" d="M36 33.8 Q40 30.6 44 33.8" fill="none" stroke="${ink}" stroke-width="1.6" stroke-linecap="round"/>`}
+      ${acc.includes("shades") ? `<g><rect x="32.5" y="23.2" width="7" height="4.8" rx="1.6" fill="#111"/><rect x="40.5" y="23.2" width="7" height="4.8" rx="1.6" fill="#111"/><rect x="39" y="24.4" width="2" height="1.2" fill="#111"/></g>` : ""}
+      ${acc.includes("tophat") ? `<g stroke="#9a8fa6" stroke-width=".9"><rect x="31" y="5" width="18" height="11.5" rx="1" fill="#2c2733"/><rect x="31" y="12.6" width="18" height="2.6" fill="#c0283f" stroke="none"/><rect x="26.5" y="15.6" width="27" height="3.2" rx="1.6" fill="#2c2733"/><path d="M33 6.5 L33 11.5" stroke="#6d6378" stroke-width="1.6" stroke-linecap="round"/></g>` : ""}
+      ${acc.includes("beret") ? `<g transform="rotate(-10 41 17)"><ellipse cx="41" cy="17.5" rx="12.5" ry="4.6" fill="#8c1c2c"/><circle cx="41" cy="12.6" r="1.7" fill="#8c1c2c"/></g>` : ""}
+      ${acc.includes("popcorn") ? `<g><circle cx="57" cy="61.5" r="3" fill="#fff6dc"/><circle cx="61.5" cy="60.5" r="3" fill="#fff6dc"/><circle cx="65" cy="62.5" r="2.7" fill="#fff6dc"/><circle cx="59.5" cy="58" r="2.6" fill="#fff6dc"/>
+        <path d="M53 63 L68 63 L65.5 80 L55.5 80 Z" fill="#fff"/><path d="M56 63 L58 63 L58.2 80 L56.6 80 Z M61 63 L63 63 L62.2 80 L60.8 80 Z M66 63 L68 63 L65.5 80 L64.6 80 Z" fill="#d6283b"/></g>` : ""}
+      ${acc.includes("sparkles") ? `<g fill="#fff"><path class="sparkle" d="M16 20 l1.5 4 4 1.5 -4 1.5 -1.5 4 -1.5 -4 -4 -1.5 4 -1.5z"/><path class="sparkle" d="M64 12 l1.2 3 3 1.2 -3 1.2 -1.2 3 -1.2 -3 -3 -1.2 3 -1.2z"/><path class="sparkle" d="M63 44 l1 2.6 2.6 1 -2.6 1 -1 2.6 -1 -2.6 -2.6 -1 2.6 -1z"/></g>` : ""}
+    </g>
+  </svg></span>`;
+}
+
+// Daily history from games saved on this device
+function history() {
+  let keys = [];
+  try { keys = Object.keys(localStorage).filter(k => k.startsWith("reelrare:daily2:")); } catch {}
+  const days = {};
+  for (const k of keys) {
+    const s = store.get(k.slice("reelrare:".length), null);
+    if (s && s.done) days[k.slice("reelrare:daily2:".length)] = (s.answers || []).reduce((t, a) => t + TIERS[a.t].pts, 0);
+  }
+  const played = Object.keys(days).sort();
+  // current streak: consecutive days ending today (or yesterday, if today isn't played yet)
+  let cur = 0, d = days[today()] !== undefined ? today() : shiftDay(today(), -1);
+  while (days[d] !== undefined) { cur++; d = shiftDay(d, -1); }
+  let best = 0, run = 0, prev = null;
+  for (const day of played) { run = prev && shiftDay(prev, 1) === day ? run + 1 : 1; best = Math.max(best, run); prev = day; }
+  best = Math.max(best, store.get("bestStreak", 0));      // never lose an unlock, even if old days are cleared
+  store.set("bestStreak", best);
+  const scores = played.map(x => days[x]);
+  return { days, played, cur, best, scores, avg: scores.length ? Math.round(scores.reduce((t, v) => t + v, 0) / scores.length) : 0 };
+}
+const unlockedLooks = best => LOOKS.filter(l => best >= l.need);
+function currentLook(best) {
+  const mine = store.get("look", "classic");
+  return unlockedLooks(best).some(l => l.id === mine) ? mine : "classic";
+}
+// looks unlocked since the player last saw them; the newest one is put on automatically
+function takeNewUnlocks(best) {
+  const seen = new Set(store.get("looksSeen", ["classic"]));
+  const fresh = unlockedLooks(best).filter(l => !seen.has(l.id));
+  if (fresh.length) {
+    store.set("looksSeen", [...seen, ...fresh.map(l => l.id)]);
+    store.set("look", fresh[fresh.length - 1].id);
+  }
+  return fresh;
+}
+const unlockBanner = fresh => fresh.length ? `<div class="unlock" role="status">${mascotSVG(fresh[fresh.length - 1].id, { pose: "cheer", size: 64 })}
+  <div><b>New look unlocked: ${esc(fresh[fresh.length - 1].name)}</b>Your ${fresh[fresh.length - 1].need}-day streak earned it. It's on now; change it on the home page.</div></div>` : "";
+
 /* ---- rendering ---- */
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const title = i => `${esc(films[i][0])} (${films[i][1]})`;
@@ -482,9 +643,15 @@ function marquee(text, cls = "") {
   return `<div class="marquee"><div class="bulbs" aria-hidden="true">${bulbs}</div><div class="board ${cls}"><p>${esc(text)}</p></div></div>`;
 }
 const gameName = () => mode === "daily" ? "Daily for " + niceDay(G.day) : "Unlimited #" + G.game;
-const caption = () => `<div class="caption"><span>${gameName()}${mode === "unlimited" ? ` <button type="button" class="linkish" data-all>All games</button>` : ""}</span><span>Clue ${Math.min(G.i + 1, ROUND)} of ${ROUND}</span></div>`;
-// "All games" links (delegated, so it works wherever a caption is drawn)
-document.addEventListener("click", e => { if (e.target.closest("[data-all]")) { stopTimer(); start("unlimited"); } });
+const myLook = () => currentLook(store.get("bestStreak", 0));
+const caption = (pose = "idle", right = `Clue ${Math.min(G.i + 1, ROUND)} of ${ROUND}`) => `<div class="caption"><span>${gameName()}${mode === "unlimited" ? ` <button type="button" class="linkish" data-all>All games</button>` : ""}</span>
+  <span class="cap-mascot">${mascotSVG(myLook(), { pose, size: 58 })}</span><span>${right}</span></div>`;
+// links that can appear anywhere (delegated): All games, Home, How to play
+document.addEventListener("click", e => {
+  if (e.target.closest("[data-all]")) { stopTimer(); start("unlimited"); }
+  else if (e.target.closest("[data-home]")) { stopTimer(); start("home"); }
+  else if (e.target.closest("[data-howto]")) openHowTo();
+});
 const ladder = () => `<ul class="ladder">${[1, 2, 3, 4, 5].map(t => `<li style="border-color:var(--t${t})"><b>${TIERS[t].name}</b>${TIERS[t].pts} points</li>`).join("")}</ul>`;
 
 function render() {
@@ -533,18 +700,15 @@ function render() {
 
 function renderReady() {
   window.house && house.close();
-  const first = !store.get("seenRules", false);
-  app.innerHTML = marquee(mode === "daily" ? "Today's seven" : "Game #" + G.game) + `
-    <div class="caption"><span>${gameName()}${mode === "unlimited" ? ` <button type="button" class="linkish" data-all>All games</button>` : ""}</span><span>7 clues</span></div>
-    <section class="rules" aria-label="How to play">
-      ${first ? `<h2>How to play</h2>` : ""}
+  app.innerHTML = marquee(mode === "daily" ? "Today's seven" : "Game #" + G.game) + caption("idle", "7 clues") + `
+    <section class="rules" aria-label="Quick rules">
       <ul>
-        <li>Each clue asks for a movie, like <em>Name a horror movie</em>. Type any film that fits. There are no suggestions, but typos and missing punctuation are fine.</li>
-        <li>You get 30 seconds per clue and as many guesses as you like.</li>
-        <li>Any correct film scores. The less obvious your pick, the more it's worth, and each clue hides one 100-point jackpot film.</li>
+        <li>7 clues, 30 seconds each, unlimited guesses.</li>
+        <li>Any film that fits scores. The less obvious, the more points.</li>
       </ul>
     </section>
-    <div class="center"><button class="go" id="startBtn" style="padding:12px 34px;font-size:26px">Start</button></div>` + ladder();
+    <div class="center"><button class="go" id="startBtn" style="padding:12px 34px;font-size:26px">Start</button></div>
+    <p class="count"><button type="button" class="linkish" data-howto>How to play</button></p>` + ladder();
   document.getElementById("startBtn").addEventListener("click", () => {
     store.set("seenRules", true);
     G.started = true; save(); render();   // render focuses the answer box inside this tap, so phones open the keyboard
@@ -561,7 +725,8 @@ function renderReveal(q) {
   const a = G.answers[G.i], T = TIERS[a.t];
   const film = a.timeout ? "Time ran out" : a.f == null ? "You gave up on this one" : title(a.f);
   if (window.house) a.t ? house.open(TIER_COLORS[a.t], T.name) : house.close();
-  app.innerHTML = marquee(q.text) + caption() + `
+  const pose = a.t === 5 ? "jackpot" : a.t ? "cheer" : "sad";
+  app.innerHTML = marquee(q.text) + caption(pose) + `
     <div class="ticket bg-t${a.t}" role="status">
       <div class="tier">${T.name}</div>
       <div class="film">${film}</div>
@@ -586,32 +751,17 @@ function untilMidnight() {
   const t = Math.max(0, Math.floor((next - now) / 1000));
   return `${Math.floor(t / 3600)}h ${String(Math.floor(t / 60) % 60).padStart(2, "0")}m ${String(t % 60).padStart(2, "0")}s`;
 }
-// Daily history from saved games on this device: streaks, averages and a score chart
-function dailyStats() {
-  let keys = [];
-  try { keys = Object.keys(localStorage).filter(k => k.startsWith("reelrare:daily2:")); } catch {}
-  const days = {};
-  for (const k of keys) {
-    const s = store.get(k.slice("reelrare:".length), null);
-    if (s && s.done) days[k.slice("reelrare:daily2:".length)] = (s.answers || []).reduce((t, a) => t + TIERS[a.t].pts, 0);
-  }
-  const played = Object.keys(days).sort();
-  if (!played.length) return "";
-  const dayAfter = (iso, n) => { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
-  // current streak: consecutive days ending today (or yesterday, if today isn't played yet)
-  let cur = 0, d = days[today()] !== undefined ? today() : dayAfter(today(), -1);
-  while (days[d] !== undefined) { cur++; d = dayAfter(d, -1); }
-  let best = 0, run = 0, prev = null;
-  for (const day of played) { run = prev && dayAfter(prev, 1) === day ? run + 1 : 1; best = Math.max(best, run); prev = day; }
-  const scores = played.map(x => days[x]);
+// Streaks, averages and a score chart for the daily results screen
+function dailyStats(h) {
+  if (!h.played.length) return "";
   const buckets = [0, 0, 0, 0, 0, 0, 0];                      // 0-99, 100-199 ... 600-700
-  scores.forEach(v => buckets[Math.min(6, Math.floor(v / 100))]++);
-  const mine = Math.min(6, Math.floor((days[G.day] ?? -1) / 100));
+  h.scores.forEach(v => buckets[Math.min(6, Math.floor(v / 100))]++);
+  const mine = Math.min(6, Math.floor((h.days[G.day] ?? -1) / 100));
   const top = Math.max(...buckets, 1);
   return `
     <section class="dstats" aria-label="Your daily stats">
-      <div class="stats"><span><b>${played.length}</b>played</span><span><b>${cur}</b>day streak</span><span><b>${best}</b>best streak</span>
-        <span><b>${Math.round(scores.reduce((t, v) => t + v, 0) / scores.length)}</b>average</span></div>
+      <div class="stats"><span><b>${h.played.length}</b>played</span><span><b>${h.cur}</b>day streak</span><span><b>${h.best}</b>best streak</span>
+        <span><b>${h.avg}</b>average</span></div>
       <div class="chart" role="img" aria-label="How your daily scores are spread">${buckets.map((c, b) => `
         <div class="bar${b === mine ? " mine" : ""}"><span style="height:${Math.round(c / top * 100)}%"></span><small>${b * 100}+</small></div>`).join("")}
       </div>
@@ -619,14 +769,15 @@ function dailyStats() {
 }
 function renderEnd() {
   window.house && house.close();
-  app.innerHTML = marquee(total() + " pts", "score") + `
-    <div class="caption"><span>${gameName()}</span><span>Out of ${ROUND * 100}</span></div>
+  const h = mode === "daily" ? history() : null;
+  const fresh = h ? takeNewUnlocks(h.best) : [];
+  app.innerHTML = marquee(total() + " pts", "score") + caption(total() > 0 ? "cheer" : "sad", `Out of ${ROUND * 100}`) + unlockBanner(fresh) + `
     <div class="stubs" aria-hidden="true">${G.answers.map(a => `<span class="stub bg-t${a.t}"></span>`).join("")}</div>
     <ul class="recap">${G.answers.map((a, k) => `<li><span class="sw bg-t${a.t}"></span><span class="q">${esc(D.questions[G.qs[k]].text)}</span>
       <span class="a">${a.timeout ? "Time ran out" : a.f == null ? "No answer" : title(a.f)}<small>${TIERS[a.t].name}${a.t ? ", " + TIERS[a.t].pts : ""}</small></span></li>`).join("")}</ul>
-    ${mode === "daily" ? `<p class="next">Next daily in <b id="countdown">${untilMidnight()}</b></p>` + dailyStats() : ""}
+    ${mode === "daily" ? `<p class="next">Next daily in <b id="countdown">${untilMidnight()}</b></p>` + dailyStats(h) : ""}
     <div class="center"><button class="plain" id="cp">Share my results</button>
-      ${mode === "unlimited" ? `<button class="plain" data-all>All games</button>` : ""}
+      ${mode === "unlimited" ? `<button class="plain" data-all>All games</button>` : `<button class="plain" data-home>Home</button>`}
       <button class="go" id="again" style="padding:10px 26px">${mode === "unlimited" ? "Next game" : "Play Unlimited"}</button></div>`;
   document.getElementById("cp").addEventListener("click", async e => {
     const text = shareText();
@@ -637,15 +788,6 @@ function renderEnd() {
     try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied, paste it anywhere"; }
     catch { e.target.textContent = "Couldn't copy"; }
   });
-  if (mode === "daily") {
-    clearInterval(window.__countdown);
-    window.__countdown = setInterval(() => {
-      const el = document.getElementById("countdown");
-      if (!el) return clearInterval(window.__countdown);
-      el.textContent = untilMidnight();
-      if (today() !== G.day) { clearInterval(window.__countdown); start("daily"); }   // a new day: load it
-    }, 1000);
-  }
   document.getElementById("again").addEventListener("click", () => {
     if (mode !== "unlimited") return start("unlimited");
     const n = nextUnplayed(G.game);
@@ -689,9 +831,93 @@ function renderGames() {
   app.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => startGame(+b.dataset.game)));
 }
 
+/* ---- home: where every visit starts ---- */
+function renderHome() {
+  window.house && house.close();
+  G = null;
+  const h = history();
+  const fresh = takeNewUnlocks(h.best);
+  const look = currentLook(h.best);
+  const day = today();
+  const s = loadState("daily2:" + day);
+  const state = !s ? "new" : s.done ? "done" : (s.started || s.answers.length) ? "going" : "new";
+  const score = s ? s.answers.reduce((t, a) => t + TIERS[a.t].pts, 0) : 0;
+  const bulbs = Array.from({ length: ROUND }, (_, k) => {
+    const a = s && s.answers[k];
+    return `<span class="bulb ${a ? "t" + a.t : state === "new" ? "t5" : ""}"></span>`;
+  }).join("");
+  const nextLook = LOOKS.find(l => l.need > h.best);
+  const first = !h.played.length && state === "new";
+  const line = first ? `Hi, I'm your statuette! Play the daily every day to build a streak and unlock new looks for me.`
+    : state === "done" ? `You scored <b>${score}</b> today. Next daily in <b id="countdown">${untilMidnight()}</b>.`
+    : state === "going" ? `You're partway through today's seven. Pick up where you left off.`
+    : h.cur > 0 ? `You're on a <b>${h.cur}-day streak</b>. Play today to keep it going!`
+    : `Today's seven clues are ready when you are.`;
+  const unl = nextUnplayed(0);
+  app.innerHTML = `
+    <div class="marquee"><div class="bulbs" aria-hidden="true">${bulbs}</div>
+      <div class="board"><p>${esc(new Date(day + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }))}</p></div></div>
+    <div class="caption"><span>Today's seven</span><span>${h.cur ? `${h.cur}-day streak` : "Start a streak today"}</span></div>
+    ${unlockBanner(fresh)}
+    <section class="stage">${mascotSVG(look, { pose: state === "done" ? "cheer" : "idle", size: 150, label: "Your statuette" })}<p class="speech">${line}</p></section>
+    <div class="home-actions">
+      <button class="go" id="playDaily">${state === "done" ? "See today's results" : state === "going" ? `Continue today's seven<small>Clue ${Math.min(s.i + 1, ROUND)} of ${ROUND}</small>` : "Play today's seven"}</button>
+      <button class="plain" data-all>Play Unlimited${unl ? `<small>Game #${unl} is next</small>` : ""}</button>
+      <button type="button" class="linkish" data-howto>How to play</button>
+    </div>
+    ${h.played.length ? `<div class="stats"><span><b>${h.played.length}</b>played</span><span><b>${h.cur}</b>day streak</span><span><b>${h.best}</b>best streak</span><span><b>${h.avg}</b>average</span></div>` : ""}
+    <section class="looks" aria-labelledby="looksTitle">
+      <h2 id="looksTitle">Your statuettes</h2>
+      <p>${nextLook ? `Reach a ${nextLook.need}-day streak to unlock ${esc(nextLook.name)}.` : "You've unlocked every look. Legendary."} Tap an unlocked look to show it.</p>
+      <ul>${LOOKS.map(l => {
+        const open = h.best >= l.need;
+        return `<li><button class="look" data-look="${l.id}" ${open ? `aria-pressed="${l.id === look}"` : "disabled"}
+          aria-label="${esc(l.name)}${open ? (l.id === look ? ", showing" : "") : `, unlocks at a ${l.need}-day streak`}">
+          ${mascotSVG(l.id, { pose: "still", size: 70, locked: !open })}<b>${esc(l.name)}</b><small>${open ? (l.id === look ? "Showing" : "Unlocked") : `${l.need}-day streak`}</small></button></li>`;
+      }).join("")}</ul>
+    </section>`;
+  document.getElementById("playDaily").addEventListener("click", () => start("daily"));
+  app.querySelectorAll("[data-look]:not([disabled])").forEach(b => b.addEventListener("click", () => {
+    store.set("look", b.dataset.look); renderHome();
+  }));
+  if (!store.get("seenRules", false)) openHowTo();      // first visit: explain the game before anything else
+}
+
+/* ---- how to play pop-up ---- */
+const howto = document.getElementById("howto");
+document.getElementById("howtoLadder").innerHTML = ladder();
+function openHowTo() {
+  if (howto.open) return;
+  if (typeof howto.showModal === "function") howto.showModal(); else howto.setAttribute("open", "");
+  document.getElementById("howtoClose").focus();
+}
+function closeHowTo() {
+  store.set("seenRules", true);
+  if (typeof howto.close === "function") howto.close(); else howto.removeAttribute("open");
+}
+document.getElementById("howtoClose").addEventListener("click", closeHowTo);
+howto.addEventListener("cancel", () => store.set("seenRules", true));   // Esc key
+howto.addEventListener("click", e => {          // a tap outside the card closes it
+  const r = howto.getBoundingClientRect();
+  if (e.target === howto && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) closeHowTo();
+});
+
+/* ---- one clock for every countdown on screen; a new day reloads the page you're on ---- */
+let shownDay = today();
+setInterval(() => {
+  const el = document.getElementById("countdown");
+  if (el) el.textContent = untilMidnight();
+  if (today() !== shownDay) {
+    shownDay = today();
+    if (mode === "home") renderHome();
+    else if (mode === "daily" && G && (G.done || !G.started)) start("daily");
+  }
+}, 1000);
+
+document.getElementById("mHome").addEventListener("click", () => start("home"));
 document.getElementById("mDaily").addEventListener("click", () => start("daily"));
 document.getElementById("mUnl").addEventListener("click", () => start("unlimited"));
-start("daily");
+start("home");
 })();
 </script>
 </body>

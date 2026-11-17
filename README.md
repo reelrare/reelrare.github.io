@@ -12,6 +12,8 @@ A daily film trivia game. Each clue asks you to name a movie that fits it ("Name
 
 Short answer lists scale these ranks down so the tiers still spread out. When you get one right, the curtains open and the screen lights up in your tier's colour.
 
+Every visit starts on the home page: today's daily, Unlimited, how to play, and your statuette, a little gold mascot that reacts as you play. Daily streaks unlock new looks for it (shades at 3 days, a top hat at 7, popcorn at 14, a beret at 30, silver at 60, diamond at 100).
+
 Daily gives everyone the same 7 clues each day. Unlimited has 130 numbered games (also the same for everyone), and its page shows which ones you've finished and your score on each.
 
 ## How it works
