@@ -344,46 +344,88 @@ DAILY_SLOTS = [["genre", "subject"], ["title", "letter", "record"], ["setting", 
                ["series", "studio", "author"], ["actor", "director", "people"]]
 
 
-def plan_daily(questions):
-    """Fix each day's 7 clues in advance. Days already scheduled in the previous data.js are
-    kept exactly as they were (if all their clues still exist), so a nightly data refresh never
-    changes a puzzle people are already playing. No clue repeats within 60 scheduled days."""
-    import random
-    keys = {q["key"] for q in questions}
-    old = {}
+# At most this many clues of one kind in a game (everything else: one each)
+KIND_CAP = {"genre": 2}
+GAMES_VERSION = 3   # bump to rebuild every Unlimited game with new rules
+
+
+def deal(rnd, by_kind, last_used, stamp):
+    """Pick 7 clues: one per slot, never more than KIND_CAP of a kind (so every game mixes kinds),
+    and within a kind one of the clues used longest ago (so clues rotate). Updates last_used."""
+    picks, used = [], defaultdict(int)
+    for slot in DAILY_SLOTS:
+        def open_kinds(kinds):
+            return [kd for kd in kinds if by_kind.get(kd) and used[kd] < KIND_CAP.get(kd, 1)
+                    and any(k not in picks for k in by_kind[kd])]
+        kinds = open_kinds(slot) or open_kinds(sorted(by_kind))
+        # bigger kinds come up more often, so every clue gets used about equally
+        kind = rnd.choices(kinds, weights=[len(by_kind[kd]) for kd in kinds])[0]
+        pool = sorted((k for k in by_kind[kind] if k not in picks), key=lambda k: (str(last_used.get(k, "")), k))
+        oldest = pool[: max(1, len(pool) // 4)]          # the least recently used quarter
+        pick = rnd.choice(oldest)
+        picks.append(pick)
+        used[kind] += 1
+        last_used[pick] = stamp
+    rnd.shuffle(picks)
+    return picks
+
+
+def previous_output():
     if os.path.exists(DATA_PATH):
         try:
             with open(DATA_PATH, encoding="utf-8") as fh:
-                old = json.loads(fh.read().split("=", 1)[1].strip().rstrip(";")).get("daily", {})
+                return json.loads(fh.read().split("=", 1)[1].strip().rstrip(";"))
         except (ValueError, IndexError):
-            old = {}
+            pass
+    return {}
+
+
+def plan_daily(questions):
+    """Fix each day's 7 clues in advance. Past days and today keep the clues already published (if
+    they all still exist), so a nightly data refresh never changes a puzzle people are playing."""
+    import random
+    keys = {q["key"] for q in questions}
+    old = previous_output().get("daily", {})
     today = datetime.date.today()
+    keep_from = (today - datetime.timedelta(days=60)).isoformat()
     daily = {d: ks for d, ks in old.items()
-             if d >= (today - datetime.timedelta(days=60)).isoformat()
-             and d < today.isoformat()   # past days stay as played; future ones follow the current rules
-             and all(k in keys for k in ks)}
-    # keep today's schedule too if it was already published
-    if today.isoformat() in old and all(k in keys for k in old[today.isoformat()]):
-        daily[today.isoformat()] = old[today.isoformat()]
+             if keep_from <= d <= today.isoformat() and all(k in keys for k in ks)}
     by_kind = defaultdict(list)
     for q in questions:
         by_kind[q["kind"]].append(q["key"])
+    last_used = {}
+    for d in sorted(daily):
+        for k in daily[d]:
+            last_used[k] = d
     for n in range(-1, DAILY_AHEAD + 1):   # from yesterday (time zones) to a month ahead
         day = (today + datetime.timedelta(days=n)).isoformat()
-        if day in daily:
-            continue
-        recent = {k for d, ks in daily.items() for k in ks}
-        rnd = random.Random("reelrare-" + day)
-        picks = []
-        for slot in DAILY_SLOTS:
-            kinds = [kd for kd in slot if any(k not in picks for k in by_kind.get(kd, []))]
-            kind = rnd.choice(kinds)
-            pool = [k for k in by_kind[kind] if k not in picks]
-            fresh = [k for k in pool if k not in recent]
-            picks.append(rnd.choice(fresh or pool))
-        rnd.shuffle(picks)
-        daily[day] = picks
+        if day not in daily:
+            daily[day] = deal(random.Random("reelrare-" + day), by_kind, last_used, day)
     return dict(sorted(daily.items()))
+
+
+def plan_games(questions):
+    """Numbered Unlimited games (#1, #2, ...), the same for everyone. Every game mixes 7 different kinds
+    of clue; clues rotate (least recently used first). Games already published are kept as they were
+    (if all their clues still exist and the rules version matches), so data refreshes don't change them."""
+    import random
+    keys = {q["key"] for q in questions}
+    prev = previous_output()
+    old = prev.get("games", []) if prev.get("games_version") == GAMES_VERSION else []
+    by_kind = defaultdict(list)
+    for q in questions:
+        by_kind[q["kind"]].append(q["key"])
+    target = max(len(old), GAMES_PER_CLUE * (len(questions) // DAILY_SIZE))
+    games, last_used = [], {}
+    for n in range(1, target + 1):
+        prev_game = old[n - 1] if n <= len(old) else None
+        if prev_game and all(k in keys for k in prev_game):
+            games.append(prev_game)
+            for k in prev_game:
+                last_used[k] = f"{n:06d}"
+            continue
+        games.append(deal(random.Random(f"reelrare-unlimited-v{GAMES_VERSION}-{n}"), by_kind, last_used, f"{n:06d}"))
+    return games
 
 
 def pick_oscars(questions, film_rows):
@@ -435,47 +477,6 @@ SELECT ?f (COUNT(DISTINCT ?w) AS ?major) WHERE {{
   ?a schema:about ?f; schema:isPartOf ?w.
 }} GROUP BY ?f""")
     return {qid(r["f"]): int(r["major"]) for r in rows}
-
-
-def plan_games(questions):
-    """Numbered Unlimited games (#1, #2, ...), the same for everyone. Games already published in the
-    previous data.js are kept exactly as they were (if all their clues still exist), so a nightly data
-    refresh never changes a game; new games are appended. Each game avoids clues used in the games just
-    before it, so a clue comes back only after roughly all the others have been used."""
-    import random
-    keys = {q["key"] for q in questions}
-    old = []
-    if os.path.exists(DATA_PATH):
-        try:
-            with open(DATA_PATH, encoding="utf-8") as fh:
-                old = json.loads(fh.read().split("=", 1)[1].strip().rstrip(";")).get("games", [])
-        except (ValueError, IndexError):
-            old = []
-    by_kind = defaultdict(list)
-    for q in questions:
-        by_kind[q["kind"]].append(q["key"])
-    target = max(len(old), GAMES_PER_CLUE * (len(questions) // DAILY_SIZE))
-    window = max(1, len(questions) // DAILY_SIZE - 1)   # games a clue must wait before coming back
-    games = []
-    for n in range(1, target + 1):
-        prev = old[n - 1] if n <= len(old) else None
-        if prev and all(k in keys for k in prev):
-            games.append(prev)
-            continue
-        recent = {k for g in games[-window:] for k in g}
-        rnd = random.Random(f"reelrare-unlimited-{n}")
-        picks = []
-        for slot in DAILY_SLOTS:
-            kinds = [kd for kd in slot if any(k not in picks and k not in recent for k in by_kind.get(kd, []))]
-            if kinds:
-                pool = [k for k in by_kind[rnd.choice(kinds)] if k not in picks and k not in recent]
-            else:   # this slot's categories are used up for now: any fresh clue, else any clue
-                pool = ([q["key"] for q in questions if q["key"] not in picks and q["key"] not in recent]
-                        or [q["key"] for q in questions if q["key"] not in picks])
-            picks.append(rnd.choice(pool))
-        rnd.shuffle(picks)
-        games.append(picks)
-    return games
 
 
 def main():
@@ -790,6 +791,7 @@ SELECT ?f ?alt WHERE {{
     out["daily"] = plan_daily(out["questions"])
     out["slots"] = DAILY_SLOTS
     out["games"] = plan_games(out["questions"])
+    out["games_version"] = GAMES_VERSION
     with open(DATA_PATH, "w", encoding="utf-8") as fh:
         fh.write("window.REEL_DATA = ")
         json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))
