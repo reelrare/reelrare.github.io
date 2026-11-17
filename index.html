@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reel Rare</title>
 <meta name="description" content="A daily film trivia game. Name a movie that fits the clue before the timer runs out. The fewer people who'd think of it, the more it's worth.">
+<!-- link previews (iMessage, Discord, X...) -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Reel Rare">
+<meta property="og:description" content="A daily film game. Name a movie that fits the clue. The less obvious your pick, the more it's worth.">
+<meta property="og:url" content="https://aidan725.github.io/reel-rare/">
+<meta property="og:image" content="https://aidan725.github.io/reel-rare/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#22060d">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2322060d'/%3E%3Ccircle cx='32' cy='32' r='16' fill='%23ffd27a'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;900&display=swap" rel="stylesheet">
@@ -52,6 +63,11 @@ body.lit main{background-color:rgba(26,6,11,.88);box-shadow:0 0 60px 20px rgba(2
 .board.score p{font-size:80px;line-height:96px;background:none}
 .caption{margin:12px 2px 0;color:var(--text-dim);font-size:15px;display:flex;justify-content:space-between;gap:10px}
 
+/* how-to-play card on the ready screen */
+.rules{margin:22px 0 4px;padding:16px 18px;background:rgba(0,0,0,.35);border-left:4px solid var(--bulb);border-radius:3px}
+.rules h2{margin:0 0 8px;font:900 26px/1.1 var(--display);letter-spacing:.5px;color:var(--bulb)}
+.rules ul{margin:0;padding-left:20px;display:grid;gap:8px;font-size:16px}
+.rules li::marker{color:var(--bulb)}
 /* clue timer: a strip of light draining under the board */
 .timer{height:6px;margin-top:10px;background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden}
 .timer span{display:block;height:100%;background:var(--bulb);transform-origin:left;transition:transform .2s linear}
@@ -83,6 +99,7 @@ button.go:hover{background:#ffe0a1}
 .ticket .tier{font:900 34px/1 var(--display);letter-spacing:.5px}
 .ticket .film{font-size:18px;margin-top:6px}
 .ticket .pts{font:700 15px var(--body);margin-top:4px}
+.ticket .why{font-size:13px;margin-top:4px;opacity:.8}
 @keyframes issue{from{transform:translateY(-36px) scaleY(.6);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.ticket{animation:none}.bulb.now{animation:none}}
 .bg-t0{background:var(--t0);color:#fff}.bg-t1{background:var(--t1)}.bg-t2{background:var(--t2)}.bg-t3{background:var(--t3)}.bg-t4{background:var(--t4)}.bg-t5{background:var(--t5)}
@@ -120,6 +137,15 @@ button.plain:hover{border-color:var(--text)}
 .tile.done{border-color:var(--bulb)}
 .tile.done .num{color:var(--bulb)}
 .tile.going{border-style:dashed;border-color:var(--text-dim)}
+/* daily results: countdown, stats and a small score chart */
+.next{text-align:center;color:var(--text-dim);margin:22px 0 0;font-size:16px}
+.next b{color:var(--text);font:900 22px var(--display);letter-spacing:.5px;margin-left:4px}
+.dstats{margin-top:18px}
+.chart{display:flex;align-items:flex-end;gap:6px;height:90px;margin:18px auto 0;max-width:420px}
+.chart .bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.chart .bar span{display:block;width:100%;min-height:3px;background:rgba(251,238,232,.25);border-radius:2px 2px 0 0}
+.chart .bar.mine span{background:var(--bulb)}
+.chart small{font-size:11px;color:var(--text-dim);margin-top:4px}
 footer{margin-top:44px;text-align:center;font-size:13px;color:#b8918d}
 footer a{color:inherit}
 @media (max-width:520px){
@@ -424,11 +450,11 @@ function loadState(slot) {
   if (qs.some(i => i === undefined)) return null;
   filmById ||= new Map(films.map((f, i) => [f[0] + "|" + f[1], i]).reverse());
   const answers = s.answers.map(a => ({ f: a.id == null ? null : filmById.get(a.id) ?? null, t: a.t, timeout: !!a.timeout }));
-  return { slot, qs, i: s.i, answers, done: s.done, reveal: s.reveal, deadline: s.deadline || null,
+  return { slot, qs, i: s.i, answers, done: s.done, reveal: s.reveal, started: !!s.started, deadline: s.deadline || null,
     wrong: (s.wrong || []).map(id => filmById.get(id)).filter(i => i !== undefined) };
 }
 const save = () => {
-  store.set(G.slot, { keys: G.qs.map(i => D.questions[i].key), i: G.i, done: G.done, reveal: G.reveal,
+  store.set(G.slot, { keys: G.qs.map(i => D.questions[i].key), i: G.i, done: G.done, reveal: G.reveal, started: !!G.started,
     deadline: G.deadline, wrong: G.wrong.map(filmId),
     answers: G.answers.map(a => ({ id: a.f == null ? null : filmId(a.f), t: a.t, timeout: !!a.timeout })) });
 };
@@ -465,6 +491,7 @@ function render() {
   if (G.done) return renderEnd();
   const q = D.questions[G.qs[G.i]];
   if (G.reveal) return renderReveal(q);
+  if (!G.started && G.i === 0 && !G.deadline && !G.answers.length) return renderReady();
   window.house && house.close();
   if (!G.deadline) { G.deadline = Date.now() + CLUE_SECONDS * 1000; save(); }
   app.innerHTML = marquee(q.text) + `<div class="timer" aria-hidden="true"><span id="bar"></span></div>` + caption() + `
@@ -504,6 +531,32 @@ function render() {
   inp.focus({ preventScroll: true });
 }
 
+function renderReady() {
+  window.house && house.close();
+  const first = !store.get("seenRules", false);
+  app.innerHTML = marquee(mode === "daily" ? "Today's seven" : "Game #" + G.game) + `
+    <div class="caption"><span>${gameName()}${mode === "unlimited" ? ` <button type="button" class="linkish" data-all>All games</button>` : ""}</span><span>7 clues</span></div>
+    <section class="rules" aria-label="How to play">
+      ${first ? `<h2>How to play</h2>` : ""}
+      <ul>
+        <li>Each clue asks for a movie, like <em>Name a horror movie</em>. Type any film that fits. There are no suggestions, but typos and missing punctuation are fine.</li>
+        <li>You get 30 seconds per clue and as many guesses as you like.</li>
+        <li>Any correct film scores. The less obvious your pick, the more it's worth, and each clue hides one 100-point jackpot film.</li>
+      </ul>
+    </section>
+    <div class="center"><button class="go" id="startBtn" style="padding:12px 34px;font-size:26px">Start</button></div>` + ladder();
+  document.getElementById("startBtn").addEventListener("click", () => {
+    store.set("seenRules", true);
+    G.started = true; save(); render();   // render focuses the answer box inside this tap, so phones open the keyboard
+  });
+}
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
+// the best-known films that still score Indie: real movies, but ones few people would think of
+function deepCuts(q) {
+  const n = q.a.length, awardEnd = Math.max(1, Math.min(CUTS[2][0], Math.ceil(CUTS[2][1] * n)));
+  const pool = q.a.slice(awardEnd).filter(i => i !== q.o);
+  return (pool.length ? pool : q.a.slice(-5).reverse()).slice(0, 5);
+}
 function renderReveal(q) {
   const a = G.answers[G.i], T = TIERS[a.t];
   const film = a.timeout ? "Time ran out" : a.f == null ? "You gave up on this one" : title(a.f);
@@ -513,18 +566,56 @@ function renderReveal(q) {
       <div class="tier">${T.name}</div>
       <div class="film">${film}</div>
       <div class="pts">${a.t ? `${T.blurb}. +${T.pts} points` : "0 points"}</div>
+      ${a.t && a.t < 5 ? `<div class="why">The ${ordinal(q.a.indexOf(a.f) + 1)} best-known of ${q.a.length} answers</div>` : ""}
     </div>
     <div class="answers">
-      <div><h3>Most people say</h3><ol>${q.a.slice(0, 5).map(i => `<li>${title(i)}</li>`).join("")}</ol></div>
-      <div><h3>Hardly anyone says</h3><ol>${q.a.slice(-5).reverse().map(i => `<li>${title(i)}</li>`).join("")}</ol></div>
+      <div><h3>Best-known answers</h3><ol>${q.a.slice(0, 5).map(i => `<li>${title(i)}</li>`).join("")}</ol></div>
+      <div><h3>Great deep cuts</h3><ol>${deepCuts(q).map(i => `<li>${title(i)}</li>`).join("")}</ol></div>
     </div>
     <p class="count">${a.t === 5 ? "You found it" : `The One in an Oscar film was ${title(q.o)}`}. ${q.a.length} films fit this clue.</p>
     <div class="center"><button class="go" id="nx" style="padding:10px 26px">${G.i + 1 < ROUND ? "Next clue" : "See my score"}</button></div>`;
   const nx = document.getElementById("nx"); nx.addEventListener("click", next); nx.focus({ preventScroll: true });
 }
 
+const SITE_URL = location.origin + location.pathname.replace(/index\.html$/, "");
 function shareText() {
-  return `Reel Rare ${mode === "daily" ? niceDay(G.day) : "Unlimited #" + G.game}\n${G.answers.map(a => SHARE[a.t]).join("")}\n${total()} points`;
+  return `Reel Rare ${mode === "daily" ? niceDay(G.day) : "Unlimited #" + G.game}\n${G.answers.map(a => SHARE[a.t]).join("")}\n${total()}/${ROUND * 100} points\n${SITE_URL}`;
+}
+function untilMidnight() {
+  const now = new Date(), next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const t = Math.max(0, Math.floor((next - now) / 1000));
+  return `${Math.floor(t / 3600)}h ${String(Math.floor(t / 60) % 60).padStart(2, "0")}m ${String(t % 60).padStart(2, "0")}s`;
+}
+// Daily history from saved games on this device: streaks, averages and a score chart
+function dailyStats() {
+  let keys = [];
+  try { keys = Object.keys(localStorage).filter(k => k.startsWith("reelrare:daily2:")); } catch {}
+  const days = {};
+  for (const k of keys) {
+    const s = store.get(k.slice("reelrare:".length), null);
+    if (s && s.done) days[k.slice("reelrare:daily2:".length)] = (s.answers || []).reduce((t, a) => t + TIERS[a.t].pts, 0);
+  }
+  const played = Object.keys(days).sort();
+  if (!played.length) return "";
+  const dayAfter = (iso, n) => { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  // current streak: consecutive days ending today (or yesterday, if today isn't played yet)
+  let cur = 0, d = days[today()] !== undefined ? today() : dayAfter(today(), -1);
+  while (days[d] !== undefined) { cur++; d = dayAfter(d, -1); }
+  let best = 0, run = 0, prev = null;
+  for (const day of played) { run = prev && dayAfter(prev, 1) === day ? run + 1 : 1; best = Math.max(best, run); prev = day; }
+  const scores = played.map(x => days[x]);
+  const buckets = [0, 0, 0, 0, 0, 0, 0];                      // 0-99, 100-199 ... 600-700
+  scores.forEach(v => buckets[Math.min(6, Math.floor(v / 100))]++);
+  const mine = Math.min(6, Math.floor((days[G.day] ?? -1) / 100));
+  const top = Math.max(...buckets, 1);
+  return `
+    <section class="dstats" aria-label="Your daily stats">
+      <div class="stats"><span><b>${played.length}</b>played</span><span><b>${cur}</b>day streak</span><span><b>${best}</b>best streak</span>
+        <span><b>${Math.round(scores.reduce((t, v) => t + v, 0) / scores.length)}</b>average</span></div>
+      <div class="chart" role="img" aria-label="How your daily scores are spread">${buckets.map((c, b) => `
+        <div class="bar${b === mine ? " mine" : ""}"><span style="height:${Math.round(c / top * 100)}%"></span><small>${b * 100}+</small></div>`).join("")}
+      </div>
+    </section>`;
 }
 function renderEnd() {
   window.house && house.close();
@@ -533,13 +624,28 @@ function renderEnd() {
     <div class="stubs" aria-hidden="true">${G.answers.map(a => `<span class="stub bg-t${a.t}"></span>`).join("")}</div>
     <ul class="recap">${G.answers.map((a, k) => `<li><span class="sw bg-t${a.t}"></span><span class="q">${esc(D.questions[G.qs[k]].text)}</span>
       <span class="a">${a.timeout ? "Time ran out" : a.f == null ? "No answer" : title(a.f)}<small>${TIERS[a.t].name}${a.t ? ", " + TIERS[a.t].pts : ""}</small></span></li>`).join("")}</ul>
-    ${mode === "daily" ? `<p class="count">A new set of seven clues arrives at midnight.</p>` : ""}
-    <div class="center"><button class="plain" id="cp">Copy my results</button>
+    ${mode === "daily" ? `<p class="next">Next daily in <b id="countdown">${untilMidnight()}</b></p>` + dailyStats() : ""}
+    <div class="center"><button class="plain" id="cp">Share my results</button>
       ${mode === "unlimited" ? `<button class="plain" data-all>All games</button>` : ""}
       <button class="go" id="again" style="padding:10px 26px">${mode === "unlimited" ? "Next game" : "Play Unlimited"}</button></div>`;
   document.getElementById("cp").addEventListener("click", async e => {
-    try { await navigator.clipboard.writeText(shareText()); e.target.textContent = "Copied"; } catch { e.target.textContent = "Couldn't copy"; }
+    const text = shareText();
+    // phones: the share sheet (Messages, WhatsApp...); computers: copy to the clipboard
+    if (navigator.share && matchMedia("(pointer: coarse)").matches) {
+      try { await navigator.share({ text }); return; } catch (err) { if (err && err.name === "AbortError") return; }
+    }
+    try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied, paste it anywhere"; }
+    catch { e.target.textContent = "Couldn't copy"; }
   });
+  if (mode === "daily") {
+    clearInterval(window.__countdown);
+    window.__countdown = setInterval(() => {
+      const el = document.getElementById("countdown");
+      if (!el) return clearInterval(window.__countdown);
+      el.textContent = untilMidnight();
+      if (today() !== G.day) { clearInterval(window.__countdown); start("daily"); }   // a new day: load it
+    }, 1000);
+  }
   document.getElementById("again").addEventListener("click", () => {
     if (mode !== "unlimited") return start("unlimited");
     const n = nextUnplayed(G.game);

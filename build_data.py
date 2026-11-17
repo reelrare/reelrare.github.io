@@ -24,6 +24,8 @@ PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
 PREFIX schema: <http://schema.org/>
 PREFIX p: <http://www.wikidata.org/prop/>
 PREFIX psv: <http://www.wikidata.org/prop/statement/value/>
+PREFIX ps: <http://www.wikidata.org/prop/statement/>
+PREFIX pq: <http://www.wikidata.org/prop/qualifier/>
 """
 UA = "ReelRareBuilder/1.0 (film trivia data build)"
 MIN_SITELINKS = 6
@@ -774,6 +776,42 @@ SELECT ?f ?alt WHERE {{
     def genre_score(k):
         return films[k]["pop"] * min(1.0, 4 / max(1, genre_counts.get(k, 1)))
 
+    # In "starring" clues a voice-only role (Julie Andrews in Shrek 2) ranks well below an on-screen
+    # role (Mary Poppins): people name the films an actor is known for, not every film they're in.
+    print("voice roles...", flush=True)
+    actor_spec = [x for x in specs if x[0] == "actor"][0]
+    onscreen = {(a, f) for a, g in relation("wdt:P161", actor_spec[2], actor_spec[3]).items() for f in g["films"]}
+    voiced = {(a, f) for a, g in relation("wdt:P725", actor_spec[2], actor_spec[3]).items() for f in g["films"]}
+    # ...unless the voiced character is famous in its own right (Woody, Mushu) or is the title role (Rango)
+    lead_voice = set()
+    for r in sparql(f"""
+SELECT DISTINCT ?f ?a ?cs ?charl WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
+  ?f p:P725 ?st. ?st ps:P725 ?a; pq:P453 ?char.
+  ?a wikibase:sitelinks ?as. FILTER(?as >= {actor_spec[2]})
+  OPTIONAL {{ ?char wikibase:sitelinks ?cs }}
+  OPTIONAL {{ ?char rdfs:label ?charl. FILTER(LANG(?charl) = "en") }}
+}}"""):
+        fk = qid(r["f"])
+        if (r["cs"] and int(r["cs"]) >= 5) or (fk in films and r["charl"] and r["charl"] in films[fk]["label"]):
+            lead_voice.add((qid(r["a"]), fk))
+    voice_only = voiced - onscreen - lead_voice
+
+    def role_score(actor, k):
+        # a minor voice part counts like being covered in 6 fewer big Wikipedias
+        return films[k]["pop"] - (6000 if (actor, k) in voice_only else 0)
+
+    def rank_key(q, j):
+        k = order[j]
+        if q["kind"] == "genre":
+            return (-genre_score(k), j)
+        if q["kind"] == "setting":
+            return (-place_score(k), j)
+        if q["kind"] == "actor":
+            return (-role_score(q["key"].split(":", 1)[1], k), j)
+        return (j, j)
+
     out = {
         "built": datetime.date.today().isoformat(),
         "source": "Wikidata (CC0). Popularity = coverage across the 20 largest Wikipedias.",
@@ -782,8 +820,7 @@ SELECT ?f ?alt WHERE {{
         "questions": [
             {"kind": q["kind"], "text": q["text"], "key": q["key"],
              "a": sorted((index[i] for i in q["ids"]),
-                        key=lambda j: (-genre_score(order[j]) if q["kind"] == "genre"
-                                       else -place_score(order[j]) if q["kind"] == "setting" else j, j))}
+                        key=lambda j: rank_key(q, j))}
             for q in sorted(questions, key=lambda q: q["key"])
         ],
     }
