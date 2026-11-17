@@ -52,6 +52,7 @@ FILM_TYPES = "wd:Q11424 wd:Q24869 wd:Q29168811 wd:Q202866 wd:Q20650540 wd:Q22673
 
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".wd_cache")
+WIKI_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wiki_cache")
 _last_call = [0.0]
 
 
@@ -177,6 +178,7 @@ SELECT ?f ?p ?plabel ?ps WHERE {{
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.js")
 DAILY_AHEAD = 30   # days of daily puzzles scheduled in advance
 DAILY_SIZE = 7
+MIN_SMALL_ANSWERS = 5   # franchises and directors need at least this many films to be scheduled
 GAMES_PER_CLUE = 5  # Unlimited games: about 5 passes through every clue
 
 # Broad, everyday categories. Every ID here was checked against Wikidata.
@@ -253,6 +255,7 @@ EXTRA_ANSWERS = {
                               "Bridge of Spies", "Thirteen Days", "Dr. Strangelove", "The Man from U.N.C.L.E.",
                               "X-Men: First Class", "Rocky IV", "Red Sparrow"],
     "Name a thriller": ["Prisoners", "Gone Girl", "Shutter Island", "Nightcrawler", "Knives Out", "Seven"],
+    "Name a movie set in London": ["Peter Pan"],
     "Name a mob movie": ["Goodfellas", "The Irishman", "Donnie Brasco", "Road to Perdition", "Mean Streets",
                          "The Untouchables", "American Gangster", "Black Mass"],
 }
@@ -262,6 +265,39 @@ SETTINGS = [
     ("Q61", "Washington, D.C."), ("Q62", "San Francisco"), ("Q1297", "Chicago"),
     ("Q23768", "Las Vegas"), ("Q1490", "Tokyo"), ("Q220", "Rome"), ("Q8652", "Miami"),
 ]
+# Second source for city clues: English Wikipedia's "Films set in ..." categories (with sub-categories
+# like "Films set in Manhattan"), which are far more complete than Wikidata's "narrative location".
+WIKI_CITY_CATEGORIES = {
+    "Q60": "Films set in New York City", "Q84": "Films set in London", "Q65": "Films set in Los Angeles",
+    "Q90": "Films set in Paris", "Q23768": "Films set in the Las Vegas Valley",
+    "Q61": "Films set in Washington, D.C.", "Q62": "Films set in San Francisco", "Q1297": "Films set in Chicago",
+    "Q1490": "Films set in Tokyo", "Q220": "Films set in Rome", "Q8652": "Films set in Miami",
+}
+
+# The films everyone thinks of first for each city. They always rank at the top (so they score as
+# Blockbusters); data alone can't tell "a Vegas movie" from "a movie with one Vegas scene".
+ICONIC_CITY_FILMS = {
+    "Q23768": ["The Hangover", "Ocean's Eleven", "Casino", "Fear and Loathing in Las Vegas", "Rain Man", "Leaving Las Vegas"],
+    "Q60": ["Ghostbusters", "Home Alone 2: Lost in New York", "Taxi Driver", "Elf", "The Devil Wears Prada", "Spider-Man"],
+    "Q65": ["La La Land", "Pulp Fiction", "Once Upon a Time in Hollywood", "The Big Lebowski", "Heat", "Clueless"],
+    "Q84": ["Notting Hill", "Love Actually", "Paddington", "Mary Poppins", "Bridget Jones's Diary", "Skyfall"],
+    "Q90": ["Ratatouille", "Amélie", "Midnight in Paris", "Moulin Rouge!", "Before Sunset", "An American in Paris"],
+}
+
+# City names in a title also count ("...Pickpocket in New York", "Once Upon a Time in Hollywood")
+CITY_TITLE_WORDS = {
+    "Q60": r"new york|\bnyc\b|manhattan|brooklyn|harlem|the bronx",
+    "Q84": r"\blondon\b",
+    "Q65": r"los angeles|hollywood|\bl\.a\.",
+    "Q90": r"\bparis\b(?!,? texas)",
+    "Q23768": r"\bvegas\b",
+    "Q61": r"washington,? d\.?c\.?",
+    "Q62": r"san francisco",
+    "Q1297": r"\bchicago\b",
+    "Q1490": r"\btokyo\b",
+    "Q220": r"\brome\b|\broman\b",
+    "Q8652": r"\bmiami\b",
+}
 SUBJECTS = [
     ("Q182154", "Name a movie about time travel"), ("Q362", "Name a World War II movie"),
     ("Q484188", "Name a movie about a serial killer"),
@@ -394,7 +430,8 @@ def plan_daily(questions):
              if keep_from <= d <= today.isoformat() and all(k in keys for k in ks)}
     by_kind = defaultdict(list)
     for q in questions:
-        by_kind[q["kind"]].append(q["key"])
+        if not q.get("r"):                       # retired clues are never scheduled
+            by_kind[q["kind"]].append(q["key"])
     last_used = {}
     for d in sorted(daily):
         for k in daily[d]:
@@ -411,12 +448,13 @@ def plan_games(questions):
     of clue; clues rotate (least recently used first). Games already published are kept as they were
     (if all their clues still exist and the rules version matches), so data refreshes don't change them."""
     import random
-    keys = {q["key"] for q in questions}
+    keys = {q["key"] for q in questions if not q.get("r")}   # a game with a retired clue is re-dealt
     prev = previous_output()
     old = prev.get("games", []) if prev.get("games_version") == GAMES_VERSION else []
     by_kind = defaultdict(list)
     for q in questions:
-        by_kind[q["kind"]].append(q["key"])
+        if not q.get("r"):
+            by_kind[q["kind"]].append(q["key"])
     target = max(len(old), GAMES_PER_CLUE * (len(questions) // DAILY_SIZE))
     games, last_used = [], {}
     for n in range(1, target + 1):
@@ -428,6 +466,64 @@ def plan_games(questions):
             continue
         games.append(deal(random.Random(f"reelrare-unlimited-v{GAMES_VERSION}-{n}"), by_kind, last_used, f"{n:06d}"))
     return games
+
+
+def wiki_category_titles(category, depth=2):
+    """Article titles in an English Wikipedia category and its "Films set in ..." sub-categories.
+    Saved in wiki_cache/ (committed with the project) and refreshed once a month; if Wikipedia
+    can't be reached, the saved copy is used, so a nightly build never loses answers."""
+    month = datetime.date.today().strftime("%Y-%m")
+    safe = re.sub(r"[^A-Za-z0-9]+", "_", category)
+    path = os.path.join(WIKI_CACHE_DIR, f"{safe}.json")
+    saved = None
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            saved = json.load(fh)
+        if saved.get("month") == month:
+            return set(saved["titles"])
+    titles, seen, queue = set(), set(), [(category, 0)]
+    try:
+        while queue:
+            cat, d = queue.pop(0)
+            if cat in seen:
+                continue
+            seen.add(cat)
+            cont = {}
+            while True:
+                params = {"action": "query", "list": "categorymembers", "cmtitle": "Category:" + cat,
+                          "cmlimit": "500", "cmtype": "page|subcat", "format": "json", **cont}
+                url = "https://en.wikipedia.org/w/api.php?" + urllib.parse.urlencode(params)
+                for attempt in range(6):          # Wikipedia rate-limits bursts: back off and retry
+                    try:
+                        req = urllib.request.Request(url, headers={"User-Agent": UA})
+                        with urllib.request.urlopen(req, timeout=60) as r:
+                            data = json.load(r)
+                        break
+                    except urllib.error.HTTPError as e:
+                        if e.code != 429 or attempt == 5:
+                            raise
+                        time.sleep(int(e.headers.get("Retry-After") or 0) or 15 * (attempt + 1))
+                for m in data["query"]["categorymembers"]:
+                    t = m["title"]
+                    if t.startswith("Category:"):
+                        sub = t[len("Category:"):]
+                        if d < depth and sub.startswith("Films set in") and "television" not in sub.lower():
+                            queue.append((sub, d + 1))
+                    else:
+                        titles.add(t)
+                if "continue" not in data:
+                    break
+                cont = data["continue"]
+                time.sleep(1)
+            time.sleep(1)
+    except Exception as e:
+        print(f"  Wikipedia category '{category}' unavailable ({e}); "
+              + ("using saved copy" if saved else "skipping"), flush=True)
+        return set(saved["titles"]) if saved else set()
+    os.makedirs(WIKI_CACHE_DIR, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"month": month, "category": category, "titles": sorted(titles)}, fh, ensure_ascii=False, indent=0)
+    return titles
 
 
 def pick_oscars(questions, film_rows):
@@ -499,6 +595,7 @@ SELECT ?f (COUNT(DISTINCT ?g) AS ?n) WHERE {{
 }} GROUP BY ?f""")}
     questions = []
     place_counts = {}
+    weak_place = set()    # "film|city" counted only because it was shot there
     # title -> best-known film with that title, for EXTRA_ANSWERS
     extra_ids = {}
     for k in sorted(films, key=lambda k: -films[k]["pop"]):
@@ -577,8 +674,34 @@ SELECT ?f ?p (COUNT(DISTINCT ?any) AS ?places) WHERE {{
     # Films listing many locations still count, but rank lower (see place_score)
     for r in rows:
         place_counts[qid(r["f"])] = max(place_counts.get(qid(r["f"]), 0), int(r["places"]))
+    # Wikidata's "set in" is often missing (The Hangover lists only Los Angeles), so also count
+    # where a film was shot and city names in its title. Those rank a little lower (place_score).
+    filmed = sparql(f"""
+SELECT DISTINCT ?f ?p WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  VALUES ?p {{ {place_ids} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
+  ?f wdt:P915 ?loc. ?loc wdt:P131* ?p.
+}}""")
+    print("Wikipedia city categories...", flush=True)
+    en_titles = {}
+    for r in sparql(f"""
+SELECT ?f ?title WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
+  ?a schema:about ?f; schema:isPartOf <https://en.wikipedia.org/>; schema:name ?title.
+}}"""):
+        en_titles.setdefault(r["title"], qid(r["f"]))
     for p, name in SETTINGS:
-        add("setting", f"Name a movie set in {name}", [qid(r["f"]) for r in rows if qid(r["p"]) == p], f"setting:{p}")
+        set_in = {qid(r["f"]) for r in rows if qid(r["p"]) == p}
+        if p in WIKI_CITY_CATEGORIES:
+            set_in |= {en_titles[t] for t in wiki_category_titles(WIKI_CITY_CATEGORIES[p]) if t in en_titles}
+        shot_in = {qid(r["f"]) for r in filmed if qid(r["p"]) == p}
+        rx = re.compile(CITY_TITLE_WORDS[p], re.I) if p in CITY_TITLE_WORDS else None
+        titled = {k for k, f in films.items() if rx and rx.search(f["label"])}
+        for k in (shot_in - set_in - titled):
+            weak_place.add(k + "|" + p)
+        add("setting", f"Name a movie set in {name}", set_in | shot_in | titled, f"setting:{p}")
     subj_ids = " ".join("wd:" + x for x, _ in SUBJECTS)
     rows = sparql(f"""
 SELECT DISTINCT ?f ?x WHERE {{
@@ -751,6 +874,11 @@ SELECT DISTINCT ?f ?prev WHERE {{
             return sum(1 for f in q["ids"] if films[f]["s"] >= 60) >= 5
         return True
     questions[:] = [q for q in questions if famous_enough(q) and q["text"] not in SKIP_CLUES]
+    # Too few answers to be fun ("Name a Back to the Future movie" has 3): retired. They stay in the
+    # data so games people already played still load, but are never scheduled again.
+    for q in questions:
+        if q["kind"] in ("series", "director") and len(q["ids"]) < MIN_SMALL_ANSWERS:
+            q["retired"] = True
 
     # ---- alternate titles (so "Star Wars" finds "Star Wars: Episode IV – A New Hope")
     print("alternate titles...", flush=True)
@@ -770,8 +898,17 @@ SELECT ?f ?alt WHERE {{
     # ---- compact output: films as array, answers as indices sorted by popularity
     order = sorted(films, key=lambda k: -films[k]["pop"])
     index = {k: i for i, k in enumerate(order)}
-    def place_score(k):
-        return films[k]["pop"] * min(1.0, 3 / max(1, place_counts.get(k, 1)))
+    iconic = {city: {extra_ids[t]: n for n, t in enumerate(ts) if t in extra_ids}
+              for city, ts in ICONIC_CITY_FILMS.items()}
+    missing_iconic = [t for ts in ICONIC_CITY_FILMS.values() for t in ts if t not in extra_ids]
+    if missing_iconic:
+        print("ICONIC_CITY_FILMS titles not in the film list:", missing_iconic, flush=True)
+
+    def place_score(k, city):
+        if k in iconic.get(city, {}):
+            return 10 ** 9 - iconic[city][k]          # pinned to the top, in the listed order
+        score = films[k]["pop"] * min(1.0, 3 / max(1, place_counts.get(k, 1)))
+        return score - (4000 if f"{k}|{city}" in weak_place else 0)
 
     def genre_score(k):
         return films[k]["pop"] * min(1.0, 4 / max(1, genre_counts.get(k, 1)))
@@ -807,7 +944,7 @@ SELECT DISTINCT ?f ?a ?cs ?charl WHERE {{
         if q["kind"] == "genre":
             return (-genre_score(k), j)
         if q["kind"] == "setting":
-            return (-place_score(k), j)
+            return (-place_score(k, q["key"].split(":", 1)[1]), j)
         if q["kind"] == "actor":
             return (-role_score(q["key"].split(":", 1)[1], k), j)
         return (j, j)
@@ -818,7 +955,7 @@ SELECT DISTINCT ?f ?a ?cs ?charl WHERE {{
         "films": [[films[k]["label"], films[k]["year"], films[k]["pop"]] for k in order],
         "aliases": {str(index[k]): v for k, v in aliases.items() if k in index},
         "questions": [
-            {"kind": q["kind"], "text": q["text"], "key": q["key"],
+            {"kind": q["kind"], "text": q["text"], "key": q["key"], **({"r": 1} if q.get("retired") else {}),
              "a": sorted((index[i] for i in q["ids"]),
                         key=lambda j: rank_key(q, j))}
             for q in sorted(questions, key=lambda q: q["key"])
