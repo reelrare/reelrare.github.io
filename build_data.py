@@ -56,7 +56,7 @@ WIKI_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wiki_
 _last_call = [0.0]
 
 
-def sparql(query, tries=6):
+def sparql(query, tries=10):
     """Run a query, caching the raw CSV so reruns on the same day don't re-hit Wikidata.
     The public endpoint may rate-limit hard (sometimes 1 request/minute), so calls are paced."""
     query = PREFIXES + query
@@ -83,9 +83,9 @@ def sparql(query, tries=6):
             retry = int(e.headers.get("Retry-After", "0") or 0)
             print(f"  query failed ({e}); retry {i + 1}/{tries}", file=sys.stderr, flush=True)
             time.sleep(max(retry, 30))
-        except Exception as e:
+        except Exception as e:      # network hiccup: wait longer each time (up to ~15 minutes in all)
             print(f"  query failed ({e}); retry {i + 1}/{tries}", file=sys.stderr, flush=True)
-            time.sleep(30)
+            time.sleep(30 + 15 * i)
     raise RuntimeError("Wikidata query failed repeatedly")
 
 
@@ -179,6 +179,10 @@ DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.js")
 DAILY_AHEAD = 30   # days of daily puzzles scheduled in advance
 DAILY_SIZE = 7
 MIN_SMALL_ANSWERS = 5   # franchises and directors need at least this many films to be scheduled
+VIEWS_MIN_MAJOR = 6     # films in at least this many big Wikipedias get page views looked up
+# Most points a film can earn, by its fame rank among all films: (tier, films in that group).
+# 1 = Blockbuster, 2 = Studio Film, 3 = Award Movie; everything else can reach Indie. Must match index.html.
+FAME_CAPS = [(1, 500), (2, 2000), (3, 6000)]
 GAMES_PER_CLUE = 5  # Unlimited games: about 5 passes through every clue
 
 # Broad, everyday categories. Every ID here was checked against Wikidata.
@@ -526,6 +530,81 @@ def wiki_category_titles(category, depth=2):
     return titles
 
 
+def fetch_pageviews(films, major):
+    """English Wikipedia page views (last 60 days) for every reasonably known film, 50 titles per
+    request at a gentle pace. One sample is saved per month in wiki_cache/pageviews.json and the
+    last six are averaged, which evens out seasonal spikes (horror in October, Christmas films in
+    December). If Wikipedia can't be reached, the saved samples are used."""
+    path = os.path.join(WIKI_CACHE_DIR, "pageviews.json")
+    store = {"samples": {}}
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            store = json.load(fh)
+    month = datetime.date.today().strftime("%Y-%m")
+    titles = {}
+    for r in sparql(f"""
+SELECT ?f ?title WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
+  ?a schema:about ?f; schema:isPartOf <https://en.wikipedia.org/>; schema:name ?title.
+}}"""):
+        k = qid(r["f"])
+        if k in films and major.get(k, 0) >= VIEWS_MIN_MAJOR:
+            titles[k] = r["title"]
+    sample = store["samples"].setdefault(month, {})
+    todo = [] if os.environ.get("NO_VIEW_FETCH") else [k for k in titles if k not in sample]
+    print(f"page views: {len(titles)} films, {len(todo)} to fetch for {month}", flush=True)
+    by_title = {}
+    for k in todo:
+        by_title.setdefault(titles[k], []).append(k)
+    names = list(by_title)
+    try:
+        for b in range(0, len(names), 50):
+            batch = names[b:b + 50]
+            cont = {}
+            while True:
+                params = {"action": "query", "prop": "pageviews", "pvipdays": "60", "titles": "|".join(batch),
+                          "format": "json", "formatversion": "2", **cont}
+                url = "https://en.wikipedia.org/w/api.php?" + urllib.parse.urlencode(params)
+                for attempt in range(6):
+                    try:
+                        req = urllib.request.Request(url, headers={"User-Agent": UA})
+                        with urllib.request.urlopen(req, timeout=60) as r:
+                            data = json.load(r)
+                        break
+                    except urllib.error.HTTPError as e:
+                        if e.code != 429 or attempt == 5:
+                            raise
+                        time.sleep(int(e.headers.get("Retry-After") or 0) or 15 * (attempt + 1))
+                renamed = {n["to"]: n["from"] for n in data["query"].get("normalized", [])}
+                for page in data["query"]["pages"]:
+                    t = renamed.get(page["title"], page["title"])
+                    if "pageviews" in page:
+                        views = sum(v or 0 for v in page["pageviews"].values())
+                        for k in by_title.get(t, []):
+                            sample[k] = views
+                if "continue" not in data:
+                    break
+                cont = data["continue"]
+                time.sleep(1)
+            time.sleep(1)
+            if b % 2500 == 0:
+                print(f"  {b}/{len(names)}", flush=True)
+    except Exception as e:
+        print(f"  page views unavailable ({e}); using saved samples", flush=True)
+    keep = sorted(store["samples"])[-6:]
+    store["samples"] = {m: store["samples"][m] for m in keep}
+    os.makedirs(WIKI_CACHE_DIR, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(store, fh, separators=(",", ":"))
+    avg = {}
+    for k in titles:
+        vals = [store["samples"][m][k] for m in keep if k in store["samples"][m]]
+        if vals:
+            avg[k] = sum(vals) / len(vals)
+    return avg
+
+
 def pick_oscars(questions, film_rows):
     """Each clue gets exactly one "One in an Oscar" film: chosen (repeatably, from the clue's
     key) among answers below the Award Movie band that are still reasonably well known
@@ -540,8 +619,12 @@ def pick_oscars(questions, film_rows):
             # small franchises: widen to everything below the Studio Film band
             deep = q["a"][max(1, min(10, math.ceil(0.35 * n))):] or deep
         # franchises/studios: the jackpot must be a proper, widely covered entry (not a TV special)
-        bar = 10000 if q["kind"] in ("series", "studio") else 5000
-        findable = [i for i in deep if film_rows[i][2] >= bar] or [i for i in deep if film_rows[i][2] >= 5000] or deep
+        # the jackpot is never a famous film (cap 4 = outside the global top 6,000), but still one a
+        # film fan could know (franchises: a proper, well-read entry)
+        bar = 17000 if q["kind"] in ("series", "studio") else 15000
+        deep_ok = [i for i in deep if film_rows[i][3] == 4] or deep
+        findable = ([i for i in deep_ok if film_rows[i][2] >= bar] or [i for i in deep_ok if film_rows[i][2] >= 12000]
+                    or deep_ok)
         q["o"] = random.Random("oscar-" + q["key"]).choice(findable)
 
 
@@ -581,11 +664,35 @@ def main():
     films = load_films()
     print(f"film pool: {len(films)}")
     major = major_links(films)
+    views = fetch_pageviews(films, major)
+    import math
+    # Films with no page-view reading (not looked up, or a run that was cut short) get the average
+    # for films covered by the same number of big Wikipedias, so a missing reading never makes a
+    # famous film look obscure.
+    by_major = defaultdict(list)
+    for k, v in views.items():
+        by_major[major.get(k, 0)].append(math.log10(v + 10))
+    est = {m: sum(x) / len(x) for m, x in by_major.items() if len(x) >= 20}
+    this_year = datetime.date.today().year
+    def log_views(k):
+        if k in views:
+            lv = math.log10(views[k] + 10)
+            # brand-new releases get a burst of attention that doesn't mean people know them yet
+            return lv - 0.5 if films[k]["year"] >= this_year - 1 else lv
+        m = major.get(k, 0)
+        near = [est[x] for x in sorted(est, key=lambda x: abs(x - m))[:1]]
+        return min(near[0], 1 + 0.2 * m) if near and m < VIEWS_MIN_MAJOR else (near[0] if near else 1 + 0.2 * m)
     for k, f in films.items():
-        # rank by big-Wikipedia coverage first, total language editions as the tie-breaker
-        f["pop"] = major.get(k, 0) * 1000 + min(f["s"], 999)
+        # how well known a film is: English Wikipedia page views (log scale), blended with how many
+        # of the 20 biggest Wikipedias cover it. ~5,000 = barely known, ~24,000 = everyone knows it.
+        f["pop"] = round(1000 * (2.5 * log_views(k) + 0.5 * major.get(k, 0))) + min(f["s"], 999) // 100
         if k in NOT_FAMOUS:
             f["pop"] = min(f["s"], 999) // 20
+    # Points cap by fame across ALL films, whatever the clue: the best-known films can never be
+    # a deep cut just because a clue has thousands of answers (Home Alone is never "Indie").
+    ranked = sorted(films, key=lambda k: -films[k]["pop"])
+    for n, k in enumerate(ranked):
+        films[k]["cap"] = next((tier for tier, limit in FAME_CAPS if n < limit), 4)
     # Big films collect many genre tags (The Terminator has 18), so within a genre clue a film
     # with lots of tags ranks lower: still a valid answer, just not a "most people say" pick.
     genre_counts = {qid(r["f"]): int(r["n"]) for r in sparql(f"""
@@ -907,11 +1014,12 @@ SELECT ?f ?alt WHERE {{
     def place_score(k, city):
         if k in iconic.get(city, {}):
             return 10 ** 9 - iconic[city][k]          # pinned to the top, in the listed order
-        score = films[k]["pop"] * min(1.0, 3 / max(1, place_counts.get(k, 1)))
-        return score - (4000 if f"{k}|{city}" in weak_place else 0)
+        score = films[k]["pop"] - 400 * max(0, place_counts.get(k, 1) - 3)
+        return score - (1500 if f"{k}|{city}" in weak_place else 0)
 
     def genre_score(k):
-        return films[k]["pop"] * min(1.0, 4 / max(1, genre_counts.get(k, 1)))
+        # small fixed deduction per extra genre tag (a percentage swamps the popularity scale)
+        return films[k]["pop"] - 400 * max(0, genre_counts.get(k, 1) - 4)
 
     # In "starring" clues a voice-only role (Julie Andrews in Shrek 2) ranks well below an on-screen
     # role (Mary Poppins): people name the films an actor is known for, not every film they're in.
@@ -936,8 +1044,8 @@ SELECT DISTINCT ?f ?a ?cs ?charl WHERE {{
     voice_only = voiced - onscreen - lead_voice
 
     def role_score(actor, k):
-        # a minor voice part counts like being covered in 6 fewer big Wikipedias
-        return films[k]["pop"] - (6000 if (actor, k) in voice_only else 0)
+        # a minor voice part counts like a film about ten times less read
+        return films[k]["pop"] - (2500 if (actor, k) in voice_only else 0)
 
     def rank_key(q, j):
         k = order[j]
@@ -951,8 +1059,8 @@ SELECT DISTINCT ?f ?a ?cs ?charl WHERE {{
 
     out = {
         "built": datetime.date.today().isoformat(),
-        "source": "Wikidata (CC0). Popularity = coverage across the 20 largest Wikipedias.",
-        "films": [[films[k]["label"], films[k]["year"], films[k]["pop"]] for k in order],
+        "source": "Wikidata (CC0). Popularity = English Wikipedia page views blended with coverage across the 20 largest Wikipedias.",
+        "films": [[films[k]["label"], films[k]["year"], films[k]["pop"], films[k]["cap"]] for k in order],
         "aliases": {str(index[k]): v for k, v in aliases.items() if k in index},
         "questions": [
             {"kind": q["kind"], "text": q["text"], "key": q["key"], **({"r": 1} if q.get("retired") else {}),

@@ -408,6 +408,9 @@ const SHARE = ["⬛", "🍿", "🎬", "🏆", "🎞️", "🌟"];
 // Everything past the last cut is Indie, except the one film per clue picked as One in an Oscar (q.o).
 // These cuts must match pick_oscars() in build_data.py.
 const CUTS = [[3, .15], [10, .35], [30, .60]];
+// Most points a film can earn anywhere, from its fame among all films (set by build_data.py, FAME_CAPS):
+// 1 = at most Blockbuster ... 4 = no cap.
+const capOf = i => (films[i] && films[i][3]) || 4;
 const films = D.films;
 
 document.getElementById("foot").innerHTML =
@@ -464,7 +467,7 @@ function dist(a, b, max) { // Damerau-Levenshtein with early exit
 // typos allowed, by length of the squashed title
 const slack = n => n.length >= 20 ? 3 : n.length >= 11 ? 2 : n.length >= 5 ? 1 : 0;
 // well-known films, for telling "real film that doesn't fit" apart from "not a film" despite typos
-const known = films.map((f, i) => i).filter(i => films[i][2] >= 3000);
+const known = films.map((f, i) => i).filter(i => films[i][2] >= 15000);
 
 // → {film, ok}  ok=true: valid answer. ok=false: a real film that doesn't fit. null: unrecognised.
 function resolve(text, q) {
@@ -495,8 +498,9 @@ function tierFor(q, i) {
   let rank = pos; const pop = films[i][2];
   while (rank > 0 && films[q.a[rank - 1]][2] === pop) rank--;   // ties share the better tier
   const n = q.a.length;
-  for (let t = 0; t < CUTS.length; t++) if (rank < Math.max(1, Math.min(CUTS[t][0], Math.ceil(CUTS[t][1] * n)))) return t + 1;
-  return 4;
+  let tier = 4;
+  for (let t = 0; t < CUTS.length; t++) if (rank < Math.max(1, Math.min(CUTS[t][0], Math.ceil(CUTS[t][1] * n)))) { tier = t + 1; break; }
+  return Math.min(tier, capOf(i));        // famous films never score as deep cuts
 }
 
 /* ---- rounds ---- */
@@ -801,7 +805,7 @@ const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "
 // the best-known films that still score Indie: real movies, but ones few people would think of
 function deepCuts(q) {
   const n = q.a.length, awardEnd = Math.max(1, Math.min(CUTS[2][0], Math.ceil(CUTS[2][1] * n)));
-  const pool = q.a.slice(awardEnd).filter(i => i !== q.o);
+  const pool = q.a.slice(awardEnd).filter(i => i !== q.o && capOf(i) === 4);
   return (pool.length ? pool : q.a.slice(-5).reverse()).slice(0, 5);
 }
 function renderReveal(q) {
@@ -861,7 +865,7 @@ function tierList(q) {
     if (p > 0 && films[i][2] !== films[q.a[p - 1]][2]) rank = p;   // ties share the better rank
     let t = 4;
     for (let c = 0; c < cuts.length; c++) if (rank < cuts[c]) { t = c + 1; break; }
-    out[p] = i === q.o ? 5 : t;
+    out[p] = i === q.o ? 5 : Math.min(t, capOf(i));
   }
   return out;
 }
