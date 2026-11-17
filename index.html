@@ -16,6 +16,8 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#22060d">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2322060d'/%3E%3Ccircle cx='32' cy='32' r='16' fill='%23ffd27a'/%3E%3C/svg%3E">
+<!-- Visitor and game-event counts: GoatCounter (no cookies, no personal data). Dashboard: reelrare.goatcounter.com -->
+<script data-goatcounter="https://reelrare.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@700;900&display=swap" rel="stylesheet">
@@ -411,6 +413,12 @@ const films = D.films;
 document.getElementById("foot").innerHTML =
   `${films.length.toLocaleString()} films and ${D.questions.filter(q => !q.r).length} clues from <a href="https://www.wikidata.org" target="_blank" rel="noopener">Wikidata</a>, updated ${D.built}`;
 
+// Anonymous game events for the GoatCounter dashboard. Never blocks the game (ad blockers are fine).
+function track(name, title) {
+  try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: name, title: title || name, event: true }); } catch {}
+}
+window.__track = track;
+
 const store = {
   get(k, d) { try { const v = localStorage.getItem("reelrare:" + k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem("reelrare:" + k, JSON.stringify(v)); } catch {} },
@@ -590,13 +598,22 @@ const total = () => G.answers.reduce((s, a) => s + TIERS[a.t].pts, 0);
 function record(film, t, timeout = false) {
   stopTimer();
   G.answers.push({ f: film, t, timeout }); G.wrong = []; G.deadline = null; G.reveal = true; save(); render();
+  if (t === 5) track("jackpot-found", "Jackpot film found");
 }
 function next() {
   G.reveal = false; G.i++;
+  const finished = G.i >= ROUND && !G.done;
   if (G.i >= ROUND) {
     G.done = true;
   }
-  save(); render();
+  save();
+  if (finished) {
+    const sc = total(), band = Math.min(600, Math.floor(sc / 100) * 100);
+    track(mode + "-finish", mode === "daily" ? "Daily finished" : "Unlimited finished");
+    track(`${mode}-score-${band}`, `${mode === "daily" ? "Daily" : "Unlimited"} score ${band}-${band === 600 ? 700 : band + 99}`);
+    if (mode === "daily") { const cur = history().cur; track(`daily-streak-${Math.min(cur, 30)}`, `Daily streak ${cur >= 30 ? "30+" : cur} days`); }
+  }
+  render();
 }
 
 /* ---- the statuette: an original little gold figure on a pedestal ----
@@ -678,6 +695,7 @@ function takeNewUnlocks(best) {
   const fresh = unlockedLooks(best).filter(l => !seen.has(l.id));
   if (fresh.length) {
     store.set("looksSeen", [...seen, ...fresh.map(l => l.id)]);
+    fresh.forEach(l => track("unlock-" + l.id, "Look unlocked: " + l.name));
     store.set("look", fresh[fresh.length - 1].id);
   }
   return fresh;
@@ -776,6 +794,7 @@ function renderReady() {
   document.getElementById("startBtn").addEventListener("click", () => {
     store.set("seenRules", true);
     G.started = true; save(); render();   // render focuses the answer box inside this tap, so phones open the keyboard
+    track(mode + "-start", mode === "daily" ? "Daily started" : "Unlimited started");
   });
 }
 const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
@@ -911,6 +930,7 @@ function renderEnd() {
       <button class="go" id="again" style="padding:10px 26px">${mode === "unlimited" ? "Next game" : "Play Unlimited"}</button></div>`;
   document.getElementById("cp").addEventListener("click", async e => {
     const text = shareText();
+    track("share-" + mode, mode === "daily" ? "Shared daily results" : "Shared Unlimited results");
     // phones: the share sheet (Messages, WhatsApp...); computers: copy to the clipboard
     if (navigator.share && matchMedia("(pointer: coarse)").matches) {
       try { await navigator.share({ text }); return; } catch (err) { if (err && err.name === "AbortError") return; }
@@ -1022,6 +1042,7 @@ const howto = document.getElementById("howto");
 document.getElementById("howtoLadder").innerHTML = ladder();
 function openHowTo() {
   if (howto.open) return;
+  track("howto-open", "How to play opened");
   if (typeof howto.showModal === "function") howto.showModal(); else howto.setAttribute("open", "");
   document.getElementById("howtoClose").focus();
 }
