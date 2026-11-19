@@ -502,12 +502,21 @@ window.__reelResolve = (text, key) => { const q = D.questions.find(q => q.key ==
 function tierFor(q, i) {
   const pos = q.a.indexOf(i); if (pos < 0) return 0;
   if (i === q.o) return 5;
+  return Math.min(rankTier(q, i), capOf(i));        // famous films never score as deep cuts
+}
+// a famous film whose points were lowered by its fame cap (its rank in this clue alone would score more)
+const capped = (q, i) => i !== q.o && q.a.includes(i) && rankTier(q, i) > capOf(i);
+// why a film got its tier, in words
+const whyLine = (q, i) => capped(q, i) ? "One of the most famous films around"
+  : `The ${ordinal(q.a.indexOf(i) + 1)} best-known of ${q.a.length.toLocaleString()} answers`;
+function rankTier(q, i) {
+  const pos = q.a.indexOf(i);
   let rank = pos; const pop = films[i][2];
   while (rank > 0 && films[q.a[rank - 1]][2] === pop) rank--;   // ties share the better tier
   const n = q.a.length;
   let tier = 4;
   for (let t = 0; t < CUTS.length; t++) if (rank < Math.max(1, Math.min(CUTS[t][0], Math.ceil(CUTS[t][1] * n)))) { tier = t + 1; break; }
-  return Math.min(tier, capOf(i));        // famous films never score as deep cuts
+  return tier;
 }
 
 /* ---- rounds ---- */
@@ -579,7 +588,7 @@ function start(m) {
 }
 function startGame(n) {
   mode = "unlimited"; stopTimer(); setTabs("unlimited");
-  const slot = "unl2:" + n;
+  const slot = "unl3:" + n;
   G = loadState(slot) || { slot, qs: gameClues(n), i: 0, answers: [], wrong: [], deadline: null, done: false };
   G.game = n;
   render();
@@ -825,7 +834,7 @@ function renderReveal(q) {
       <div class="tier">${T.name}</div>
       <div class="film">${film}</div>
       <div class="pts">${a.t ? `${T.blurb}. +${T.pts} points` : "0 points"}</div>
-      ${a.t && a.t < 5 ? `<div class="why">The ${ordinal(q.a.indexOf(a.f) + 1)} best-known of ${q.a.length} answers</div>` : ""}
+      ${a.t && a.t < 5 ? `<div class="why">${whyLine(q, a.f)}</div>` : ""}
     </div>
     <div class="answers">
       <div><h3>Best-known answers</h3><ol>${q.a.slice(0, 5).map(i => `<li>${title(i)}</li>`).join("")}</ol></div>
@@ -885,7 +894,8 @@ function renderDetail(k) {
   const list = groups[st.tier], shown = list.slice(0, st.shown), rest = list.length - shown.length;
   const n = q.a.length.toLocaleString();
   const mine = a.f != null && a.t ? (a.t === 5 ? `Your pick: <b>${title(a.f)}</b>, the one jackpot film among ${n} answers.`
-      : `Your pick: <b>${title(a.f)}</b>, ${TIERS[a.t].name}, the ${ordinal(q.a.indexOf(a.f) + 1)} best-known of ${n} answers.`)
+      : (capped(q, a.f) ? `Your pick: <b>${title(a.f)}</b>, ${TIERS[a.t].name}: one of the most famous films around.`
+        : `Your pick: <b>${title(a.f)}</b>, ${TIERS[a.t].name}, the ${ordinal(q.a.indexOf(a.f) + 1)} best-known of ${n} answers.`))
     : `You didn't score on this one. ${n} films fit this clue.`;
   document.getElementById("detail" + k).innerHTML = `
     <p class="mine-line">${mine}</p>
@@ -958,7 +968,7 @@ function renderEnd() {
 
 /* ---- the Unlimited page: every numbered game, with what you've finished ---- */
 function gameStatus(n) {
-  const s = store.get("unl2:" + n, null);
+  const s = store.get("unl3:" + n, null);
   if (!s) return { state: "new" };
   const score = (s.answers || []).reduce((t, a) => t + TIERS[a.t].pts, 0);
   return { state: s.done ? "done" : "going", score, tiers: (s.answers || []).map(a => a.t) };
@@ -1043,7 +1053,7 @@ function renderHome() {
   }));
   // first visit: explain the game before anything else (people who've already played skip it)
   let played = false;
-  try { played = Object.keys(localStorage).some(k => /^reelrare:(daily2|unl2):/.test(k)); } catch {}
+  try { played = Object.keys(localStorage).some(k => /^reelrare:(daily2|unl2|unl3):/.test(k)); } catch {}
   if (played && !store.get("seenRules", false)) store.set("seenRules", true);
   if (!store.get("seenRules", false)) openHowTo();
 }

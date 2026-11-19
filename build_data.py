@@ -185,7 +185,6 @@ VIEWS_MIN_MAJOR = 12    # films in at least this many big Wikipedias get page vi
 # Most points a film can earn, by its fame rank among all films: (tier, films in that group).
 # 1 = Blockbuster, 2 = Studio Film, 3 = Award Movie; everything else can reach Indie. Must match index.html.
 FAME_CAPS = [(1, 500), (2, 2000), (3, 6000)]
-GAMES_PER_CLUE = 5  # Unlimited games: about 5 passes through every clue
 
 # Broad, everyday categories. Every ID here was checked against Wikidata.
 # Genres use direct genre tags only: Wikidata's genre hierarchy is too tangled to follow
@@ -276,6 +275,7 @@ SETTINGS = [
     ("Q60", "New York City"), ("Q84", "London"), ("Q65", "Los Angeles"), ("Q90", "Paris"),
     ("Q61", "Washington, D.C."), ("Q62", "San Francisco"), ("Q1297", "Chicago"),
     ("Q23768", "Las Vegas"), ("Q1490", "Tokyo"), ("Q220", "Rome"), ("Q8652", "Miami"),
+    ("Q100", "Boston"), ("Q4169", "space"),
 ]
 # Second source for city clues: English Wikipedia's "Films set in ..." categories (with sub-categories
 # like "Films set in Manhattan"), which are far more complete than Wikidata's "narrative location".
@@ -284,6 +284,7 @@ WIKI_CITY_CATEGORIES = {
     "Q90": "Films set in Paris", "Q23768": "Films set in the Las Vegas Valley",
     "Q61": "Films set in Washington, D.C.", "Q62": "Films set in San Francisco", "Q1297": "Films set in Chicago",
     "Q1490": "Films set in Tokyo", "Q220": "Films set in Rome", "Q8652": "Films set in Miami",
+    "Q100": "Films set in Boston", "Q4169": "Films set in outer space",
 }
 
 # The films everyone thinks of first for each city. They always rank at the top (so they score as
@@ -294,6 +295,14 @@ ICONIC_CITY_FILMS = {
     "Q65": ["La La Land", "Pulp Fiction", "Once Upon a Time in Hollywood", "The Big Lebowski", "Heat", "Clueless"],
     "Q84": ["Notting Hill", "Love Actually", "Paddington", "Mary Poppins", "Bridget Jones's Diary", "Skyfall"],
     "Q90": ["Ratatouille", "Amélie", "Midnight in Paris", "Moulin Rouge!", "Before Sunset", "An American in Paris"],
+    "Q1297": ["Ferris Bueller's Day Off", "Home Alone", "The Dark Knight", "The Blues Brothers", "The Untouchables", "Chicago"],
+    "Q62": ["Mrs. Doubtfire", "Vertigo", "Inside Out", "Dirty Harry", "The Pursuit of Happyness", "Rise of the Planet of the Apes"],
+    "Q61": ["All the President's Men", "Mr. Smith Goes to Washington", "The Exorcist", "National Treasure", "Captain America: The Winter Soldier", "Wonder Woman 1984"],
+    "Q1490": ["Lost in Translation", "The Fast and the Furious: Tokyo Drift", "Kill Bill: Volume 1", "Your Name", "Akira", "Shoplifters"],
+    "Q220": ["Roman Holiday", "Gladiator", "Angels & Demons", "Eat Pray Love", "La Dolce Vita", "When in Rome"],
+    "Q8652": ["Scarface", "Bad Boys", "Moonlight", "Miami Vice", "There's Something About Mary", "The Birdcage"],
+    "Q100": ["Good Will Hunting", "The Departed", "Ted", "Mystic River", "The Town", "Spotlight"],
+    "Q4169": ["Gravity", "Interstellar", "2001: A Space Odyssey", "Alien", "Apollo 13", "WALL-E"],
 }
 
 # City names in a title also count ("...Pickpocket in New York", "Once Upon a Time in Hollywood")
@@ -309,6 +318,8 @@ CITY_TITLE_WORDS = {
     "Q1490": r"\btokyo\b",
     "Q220": r"\brome\b|\broman\b",
     "Q8652": r"\bmiami\b",
+    "Q100": r"\bboston\b",
+    "Q4169": r"\bin space\b|\bouter space\b",
 }
 SUBJECTS = [
     ("Q182154", "Name a movie about time travel"), ("Q362", "Name a World War II movie"),
@@ -328,14 +339,13 @@ SKIP_CLUES = {
     "Name a biopic", "Name a teen movie", "Name a family movie", "Name an adventure movie",
     "Name a crime movie", "Name a heist movie", "Name a slasher movie", "Name a monster movie",
     "Name a post-apocalyptic movie", "Name a revenge movie", "Name a movie about artificial intelligence",
-    "Name a movie set in Tokyo", "Name a movie set in Rome", "Name a movie set in Miami",
-    "Name a movie set in Chicago", "Name a movie set in San Francisco", "Name a movie set in Washington, D.C.",
     "Name a movie starring Sigourney Weaver", "Name a movie starring Gwyneth Paltrow",
     "Name a movie starring Halle Berry", "Name a movie starring Jeremy Renner", "Name a movie starring Cate Blanchett",
     "Name a movie directed by Robert Zemeckis",
     "Name a movie starring Stan Lee",          # cameos only
     "Name a Disney Renaissance movie",         # Wikidata lists only 4 of the 10 films
     "Name a Dollars movie",                    # the "Dollars Trilogy" isn't a name most people know
+    "Name a movie based on a book by Charles Perrault", "Name a movie based on a book by Mario Puzo",
 }
 # Only Disney is a studio most people can name films for.
 STUDIO_CLUES = {"Walt Disney Pictures": "Name a Disney movie", "Pixar": "Name a Pixar movie",
@@ -346,6 +356,7 @@ BAD_ANSWERS = {
                            "Buzz Lightyear of Star Command: The Adventure Begins"},  # not Pixar films
     "Name a Toy Story movie": {"Buzz Lightyear of Star Command: The Adventure Begins"},          # TV pilot
     "Name a movie with a U.S. president as a character": {"Milk"},   # archival footage only
+    "Name a movie based on a TV show": {"Backrooms"},                 # based on a web series
 }
 
 # Directors: only household names (current) and all-time legends. Label as in Wikidata.
@@ -354,10 +365,22 @@ DIRECTORS = {
     "Tim Burton", "Peter Jackson", "Ridley Scott", "Denis Villeneuve", "Wes Anderson", "Greta Gerwig",
     "Jordan Peele", "Guillermo del Toro", "David Fincher",
     "Alfred Hitchcock", "Stanley Kubrick",
+    "Clint Eastwood", "Ron Howard", "Michael Bay", "Zack Snyder", "M. Night Shyamalan", "Spike Lee",
+    "Guy Ritchie", "Taika Waititi", "Sam Raimi", "J. J. Abrams", "James Gunn", "Hayao Miyazaki",
+    "Francis Ford Coppola", "George Lucas",
+}
+
+# Actors in 70-89 Wikipedias (below the usual bar of 90) who are household names anyway
+MORE_ACTORS = {
+    "Ewan McGregor", "Emma Thompson", "Cillian Murphy", "Mike Myers", "Tom Hardy", "Mark Ruffalo",
+    "Helena Bonham Carter", "Bill Murray", "Willem Dafoe", "Idris Elba", "Elijah Wood", "Colin Firth",
+    "Zoe Saldaña", "Elizabeth Olsen", "Ralph Fiennes", "Michael Keaton", "Tom Hiddleston", "Owen Wilson",
+    "Kurt Russell", "Jeff Goldblum", "Christopher Walken", "Steve Buscemi", "Mark Hamill", "Joe Pesci",
+    "Joseph Gordon-Levitt", "Lucy Liu", "Lupita Nyong'o", "Laurence Fishburne",
 }
 
 # Clues about the title itself (computed from English titles, so always accurate)
-LETTERS = "BCDFGHJKLMNPRSTW"
+LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWYZ"
 NUMBER_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
                 "twelve", "thirteen", "twenty", "hundred", "thousand", "million", "first", "second", "third"]
 COLOR_WORDS = ["red", "blue", "green", "black", "white", "yellow", "orange", "purple", "pink", "gold",
@@ -372,52 +395,174 @@ ANIMAL_WORDS = ["dog", "dogs", "cat", "cats", "lion", "lions", "tiger", "tigers"
                 "swan", "dove", "butterfly", "wasp", "bat", "bats", "dinosaur", "dinosaurs", "kitten", "puppy",
                 "cub", "beetle", "hound", "mustang", "stallion", "raptor"]
 
+# "Name a movie with the word "Love" in the title" (whole words, so Spider-Man counts for "Man")
+TITLE_WORDS = ["Love", "Man", "Night", "Day", "Star", "Dead", "King", "Girl", "Boy", "War", "Life",
+               "Home", "Big", "Little", "Last", "Dark", "World", "Lost", "Story", "Time",
+               "Death", "Heart", "Monster", "Ghost", "Dragon", "City", "Island", "Planet", "Secret", "Wild",
+               "Good", "Bad", "Queen", "Prince", "Princess", "Dream", "Summer", "House", "Fire", "Sun",
+               "Moon", "Blood", "Kid", "Lady", "Return", "Rise", "Christmas", "Mission", "Game", "Baby"]
+
+# Genre + decade clues ("Name a 90s horror movie"): genre clue text -> how it reads with a decade
+ERA_GENRES = {
+    "Name an action movie": "action movie", "Name a comedy": "comedy", "Name a horror movie": "horror movie",
+    "Name a sci-fi movie": "sci-fi movie", "Name an animated movie": "animated movie",
+    "Name a romantic comedy": "romantic comedy", "Name a superhero movie": "superhero movie",
+    "Name a thriller": "thriller", "Name a fantasy movie": "fantasy movie", "Name a Christmas movie": "Christmas movie",
+    "Name a war movie": "war movie", "Name a musical": "musical",
+    "Name a kids' movie": "kids' movie", "Name a spy movie": "spy movie", "Name a disaster movie": "disaster movie",
+    "Name a Western": "Western", "Name a romance movie": "romance movie", "Name a heist movie": "heist movie",
+}
+# City + decade ("Name a 90s movie set in New York City"). (Genre + city was tried: Wikidata's genre
+# tags are too loose for it, e.g. Mary Poppins as an "action movie set in London".)
+ERA_CITIES = ["Q60", "Q65", "Q84", "Q90", "Q1297", "Q62"]
+ERA_DECADES = [(1980, "an 80s"), (1990, "a 90s"), (2000, "a 2000s"), (2010, "a 2010s"), (2020, "a 2020s")]
+
+# The films everyone thinks of first for a genre. They rank at the top (so they score as
+# Blockbusters) and always count; page views alone can be skewed by a season or a news story.
+ICONIC_GENRE_FILMS = {
+    "Name an action movie": ["Die Hard", "The Matrix", "Mad Max: Fury Road", "John Wick", "Terminator 2: Judgment Day", "Top Gun", "Lethal Weapon", "Speed", "Rambo", "Gladiator"],
+    "Name a comedy": ["Home Alone", "The Hangover", "Superbad", "Mean Girls", "Dumb and Dumber", "Groundhog Day", "Step Brothers", "Anchorman: The Legend of Ron Burgundy", "Bridesmaids", "Ferris Bueller's Day Off"],
+    "Name a Western": ["The Good, the Bad and the Ugly", "Django Unchained", "Unforgiven", "True Grit", "Tombstone", "Butch Cassidy and the Sundance Kid", "Once Upon a Time in the West", "The Magnificent Seven"],
+    "Name a horror movie": ["The Shining", "Halloween", "The Exorcist", "Scream", "It", "Get Out", "A Nightmare on Elm Street", "The Conjuring", "Psycho", "Saw"],
+    "Name a sci-fi movie": ["Star Wars: Episode IV – A New Hope", "The Matrix", "Alien", "Blade Runner", "Interstellar", "Back to the Future", "E.T. the Extra-Terrestrial", "The Terminator", "Inception", "Avatar"],
+    "Name a romance movie": ["Titanic", "The Notebook", "Pride & Prejudice", "Casablanca", "La La Land", "Dirty Dancing", "Pretty Woman", "Romeo + Juliet", "A Walk to Remember", "Ghost"],
+    "Name a superhero movie": ["The Avengers", "The Dark Knight", "Spider-Man", "Iron Man", "Black Panther", "Avengers: Endgame", "Wonder Woman", "Guardians of the Galaxy", "Superman", "Deadpool"],
+    "Name a musical": ["The Sound of Music", "Grease", "The Greatest Showman", "Mamma Mia!", "Les Misérables", "West Side Story", "Chicago", "Singin' in the Rain", "Hairspray", "The Wizard of Oz"],
+    "Name a war movie": ["Saving Private Ryan", "Apocalypse Now", "Full Metal Jacket", "Dunkirk", "1917", "Platoon", "Hacksaw Ridge", "Black Hawk Down", "Inglourious Basterds", "Pearl Harbor"],
+    "Name a Christmas movie": ["Home Alone", "Elf", "The Polar Express", "It's a Wonderful Life", "Love Actually", "Dr. Seuss' How the Grinch Stole Christmas", "A Christmas Story", "The Nightmare Before Christmas", "The Santa Clause", "Miracle on 34th Street"],
+    "Name a spy movie": ["Casino Royale", "Skyfall", "Mission: Impossible", "The Bourne Identity", "Goldfinger", "Kingsman: The Secret Service", "Tinker Tailor Soldier Spy", "Spy"],
+    "Name a fantasy movie": ["The Lord of the Rings: The Fellowship of the Ring", "Harry Potter and the Philosopher's Stone", "The Wizard of Oz", "The Princess Bride", "Pan's Labyrinth", "The Chronicles of Narnia: The Lion, the Witch and the Wardrobe", "Willow", "Labyrinth"],
+    "Name a thriller": ["The Silence of the Lambs", "Seven", "Gone Girl", "Shutter Island", "Psycho", "Jaws", "Prisoners", "The Sixth Sense", "Zodiac", "Rear Window"],
+    "Name a zombie movie": ["Shaun of the Dead", "28 Days Later", "World War Z", "Zombieland", "Dawn of the Dead", "Night of the Living Dead", "Train to Busan", "I Am Legend"],
+    "Name a disaster movie": ["Titanic", "Twister", "The Day After Tomorrow", "2012", "Armageddon", "Deep Impact", "San Andreas", "Independence Day", "Volcano", "Dante's Peak"],
+    "Name an animated movie": ["Toy Story", "The Lion King", "Frozen", "Shrek", "Finding Nemo", "Spirited Away", "Up", "Moana", "Aladdin", "Coco"],
+    "Name a romantic comedy": ["When Harry Met Sally", "Notting Hill", "Pretty Woman", "10 Things I Hate About You", "Crazy Rich Asians", "How to Lose a Guy in 10 Days", "Love Actually", "The Proposal", "Sleepless in Seattle", "Clueless"],
+    "Name a dystopian movie": ["The Hunger Games", "Blade Runner", "The Matrix", "V for Vendetta", "Children of Men", "Divergent", "Mad Max: Fury Road", "The Maze Runner", "Snowpiercer"],
+    "Name a coming-of-age movie": ["Stand by Me", "The Breakfast Club", "Lady Bird", "The Perks of Being a Wallflower", "Boyhood", "Superbad", "Dazed and Confused", "Eighth Grade", "Juno"],
+    "Name a kids' movie": ["Toy Story", "Finding Nemo", "Shrek", "Frozen", "The Lion King", "Matilda", "Home Alone", "Paddington", "Despicable Me", "The Incredibles"],
+    "Name a heist movie": ["Ocean's Eleven", "The Italian Job", "Inception", "Heat", "Baby Driver", "The Town", "Reservoir Dogs", "Now You See Me"],
+}
+
+# Clues on one theme never share a game ("set in Las Vegas" + "about gambling", "Pixar" + "Toy Story").
+# Matched against clue text; clues whose best-known answers overlap a lot also never share a game.
+THEMES = {
+    "vegas": r"las vegas|gambling|casino",
+    "war": r"\bwar\b|world war|cold war|\bspy\b|james bond|ian fleming|mission: impossible",
+    "hero": r"superhero|comic|marvel|\bdc\b|batman|spider-man|x-men|avengers|superman|stan lee|justice league",
+    "horror": r"horror|zombie|serial killer|outbreak|slasher|stephen king|monster",
+    "scifi": r"sci-fi|alien|time travel|dystopian|star wars|star trek|terminator|artificial|matrix|transformers|planet of the apes|set in space",
+    "kids": r"kids|animated|animation|pixar|disney|toy story|ice age|shrek|dreamworks|despicable|madagascar|miyazaki|kung fu panda|how to train|fairy tale|based on a toy|roald dahl|dr\. seuss",
+    "romance": r"romance|romantic|nicholas sparks|jane austen",
+    "comedy": r"comedy|comedies",
+    "fantasy": r"fantasy|lord of the rings|harry potter|rowling|tolkien|hobbit|wizarding|narnia|middle-earth",
+    "pirate": r"pirate|caribbean",
+    "crime": r"\bmob\b|crime|heist|gangster|godfather|scarface",
+    "dino": r"dinosaur|jurassic",
+    "xmas": r"christmas",
+    "oscar": r"best picture|oscar|academy award|animated feature",
+    "music": r"musical",
+    "west": r"western",
+    "japan": r"japan|tokyo|miyazaki|anime|godzilla",
+    "asia": r"korea|chin(a|ese)|hong kong",
+    "spanish": r"spanish|mexic",
+    "france": r"paris|french",
+    "italy": r"\brome\b|italian",
+    "uk": r"london|british|james bond|harry potter",
+    "space": r"space|star wars|star trek|alien",
+    "nyc": r"new york", "la": r"los angeles|hollywood", "chicago": r"chicago", "sf": r"san francisco",
+    "dc": r"washington|president", "boston": r"boston", "miami": r"miami",
+}
+
 # Films from a country (country of origin)
 COUNTRIES = [("Q17", "Name a movie from Japan"), ("Q142", "Name a French movie"),
              ("Q145", "Name a British movie"), ("Q38", "Name an Italian movie"),
-             ("Q668", "Name a movie from India")]
+             ("Q668", "Name a movie from India"),
+             ("Q29", "Name a Spanish movie"), ("Q183", "Name a German movie")]
+# Wikidata rarely gives Korean and Chinese films a country, so these go by original language
+LANGUAGE_CLUES = [(("Q9176",), "Name a Korean movie", "korean"),
+                  (("Q7850", "Q9192", "Q9186"), "Name a Chinese movie", "chinese")]
 # Co-productions list many countries (Ratatouille isn't Japanese), so for these the film must also be
 # in one of the country's languages.
 COUNTRY_LANGUAGES = {
     "Q17": ["Q5287"],                       # Japanese
     "Q142": ["Q150"],                       # French
     "Q38": ["Q652"],                        # Italian
+    "Q29": ["Q1321", "Q7026", "Q8752", "Q9307"],   # Spanish, Catalan, Basque, Galician
+    "Q183": ["Q188"],                       # German
     "Q668": ["Q1568", "Q5885", "Q8097", "Q36236", "Q33673", "Q9610", "Q1571", "Q58635"],  # Indian languages
 }
 
 # Each day: 5 broad clues + 2 about a big franchise or a famous name, in shuffled order.
 # Within a slot a category is picked first, then a clue, so year clues (one option in one
 # slot) come up roughly once every four days.
-DAILY_SLOTS = [["genre", "subject"], ["title", "letter", "record"], ["setting", "country", "subject"],
-               ["award", "record", "genre", "people"],
-               ["genre", "setting", "subject", "year", "title", "letter", "country"],
+DAILY_SLOTS = [["genre", "subject", "era"], ["title", "letter", "record"], ["setting", "country", "subject"],
+               ["award", "record", "genre", "people", "era"],
+               ["genre", "setting", "subject", "year", "title", "letter", "country", "era"],
                ["series", "studio", "author"], ["actor", "director", "people"]]
 
 
 # At most this many clues of one kind in a game (everything else: one each)
-KIND_CAP = {"genre": 2}
-GAMES_VERSION = 3   # bump to rebuild every Unlimited game with new rules
+KIND_CAP = {"genre": 2, "era": 2, "actor": 2}
+GAMES_VERSION = 4   # bump to rebuild every Unlimited game with new rules
+DAILY_VERSION = 2   # bump to re-plan every future daily puzzle with new rules
+# Every clue is used once, ever: in one daily puzzle or in one Unlimited game, never both.
+# Each clue's lane is fixed by its key (so it never moves between nightly builds); this share
+# of clues goes to Unlimited, the rest to the daily puzzles.
+UNLIMITED_SHARE = 30   # percent
+LOW_DAILY_WARNING = 30   # warn when fewer than this many days of fresh daily clues are left
 
 
-def deal(rnd, by_kind, last_used, stamp):
-    """Pick 7 clues: one per slot, never more than KIND_CAP of a kind (so every game mixes kinds),
-    and within a kind one of the clues used longest ago (so clues rotate). Updates last_used."""
-    picks, used = [], defaultdict(int)
-    for slot in DAILY_SLOTS:
-        def open_kinds(kinds):
-            return [kd for kd in kinds if by_kind.get(kd) and used[kd] < KIND_CAP.get(kd, 1)
-                    and any(k not in picks for k in by_kind[kd])]
-        kinds = open_kinds(slot) or open_kinds(sorted(by_kind))
-        # bigger kinds come up more often, so every clue gets used about equally
-        kind = rnd.choices(kinds, weights=[len(by_kind[kd]) for kd in kinds])[0]
-        pool = sorted((k for k in by_kind[kind] if k not in picks), key=lambda k: (str(last_used.get(k, "")), k))
-        oldest = pool[: max(1, len(pool) // 4)]          # the least recently used quarter
-        pick = rnd.choice(oldest)
-        picks.append(pick)
-        used[kind] += 1
-        last_used[pick] = stamp
-    rnd.shuffle(picks)
-    return picks
+def lane(key):
+    import hashlib
+    return "unlimited" if int(hashlib.sha1(key.encode()).hexdigest(), 16) % 100 < UNLIMITED_SHARE else "daily"
+
+
+def clue_clashes(questions):
+    """Pairs of clues that shouldn't share a game: the same theme (Las Vegas + gambling, a horror
+    movie + a zombie movie), the same decade (a 2010s comedy + a movie from 2014), or several of
+    the same best-known answers (Tom Cruise + Mission: Impossible)."""
+    themes = {}
+    for q in questions:
+        t = {name for name, rx in THEMES.items() if re.search(rx, q["text"], re.I)}
+        m = re.search(r"(?:decade|year|era:[^:]+):(\d{4})$", q["key"])
+        if m:
+            t.add(f"decade{int(m.group(1)) // 10 * 10}")
+        themes[q["key"]] = t
+    top = {q["key"]: set(q["a"][:8]) for q in questions}
+    keys = list(themes)
+    clash = defaultdict(set)
+    for i, a in enumerate(keys):
+        for b in keys[i + 1:]:
+            if themes[a] & themes[b] or len(top[a] & top[b]) >= 3:
+                clash[a].add(b)
+                clash[b].add(a)
+    return clash
+
+
+def deal(rnd, by_kind, fresh, clash, relax=True):
+    """Pick 7 fresh clues (never used before): one per slot, at most KIND_CAP of a kind, no two on
+    the same theme. Kinds with more fresh clues left come up more often, so every kind runs out at
+    about the same time. Returns None when 7 can't be found. With relax, the theme and kind rules
+    are dropped (in that order) rather than fail."""
+    for strict in ((True, False) if relax else (True,)):      # theme rule first
+        picks, used = [], defaultdict(int)
+        def ok(k):
+            return k in fresh and k not in picks and not (strict and clash.get(k, set()) & set(picks))
+        for slot in DAILY_SLOTS:
+            def open_kinds(kinds, cap=True):
+                return [kd for kd in kinds if (not cap or used[kd] < KIND_CAP.get(kd, 1))
+                        and any(ok(k) for k in by_kind.get(kd, []))]
+            kinds = (open_kinds(slot) or open_kinds(sorted(by_kind))
+                     or (open_kinds(sorted(by_kind), cap=False) if relax else []))
+            if not kinds:
+                break
+            kind = rnd.choices(kinds, weights=[sum(1 for k in by_kind[kd] if ok(k)) for kd in kinds])[0]
+            picks.append(rnd.choice(sorted(k for k in by_kind[kind] if ok(k))))
+            used[kind] += 1
+        if len(picks) == DAILY_SIZE:
+            rnd.shuffle(picks)
+            return picks
+    return None
 
 
 def previous_output():
@@ -430,54 +575,84 @@ def previous_output():
     return {}
 
 
-def plan_daily(questions):
-    """Fix each day's 7 clues in advance. Past days and today keep the clues already published (if
-    they all still exist), so a nightly data refresh never changes a puzzle people are playing."""
+def plan_all(questions):
+    """Daily puzzles and Unlimited games, with no clue ever used twice anywhere.
+    Kept as published: every past day and today, every Unlimited game already numbered, and future
+    days already planned under the same rules. Only what's new is dealt, from clues never used."""
     import random
-    keys = {q["key"] for q in questions}
-    old = previous_output().get("daily", {})
-    today = datetime.date.today()
-    keep_from = (today - datetime.timedelta(days=60)).isoformat()
-    daily = {d: ks for d, ks in old.items()
-             if keep_from <= d <= today.isoformat() and all(k in keys for k in ks)}
-    by_kind = defaultdict(list)
-    for q in questions:
-        if not q.get("r"):                       # retired clues are never scheduled
-            by_kind[q["kind"]].append(q["key"])
-    last_used = {}
-    for d in sorted(daily):
-        for k in daily[d]:
-            last_used[k] = d
-    for n in range(-1, DAILY_AHEAD + 1):   # from yesterday (time zones) to a month ahead
-        day = (today + datetime.timedelta(days=n)).isoformat()
-        if day not in daily:
-            daily[day] = deal(random.Random("reelrare-" + day), by_kind, last_used, day)
-    return dict(sorted(daily.items()))
-
-
-def plan_games(questions):
-    """Numbered Unlimited games (#1, #2, ...), the same for everyone. Every game mixes 7 different kinds
-    of clue; clues rotate (least recently used first). Games already published are kept as they were
-    (if all their clues still exist and the rules version matches), so data refreshes don't change them."""
-    import random
-    keys = {q["key"] for q in questions if not q.get("r")}   # a game with a retired clue is re-dealt
+    all_keys = {q["key"] for q in questions}
+    active = {q["key"] for q in questions if not q.get("r")}
+    clash = clue_clashes([q for q in questions if q["key"] in active])
     prev = previous_output()
-    old = prev.get("games", []) if prev.get("games_version") == GAMES_VERSION else []
+    today = datetime.date.today().isoformat()
+    old_daily = prev.get("daily", {})
+    same_rules = prev.get("daily_version") == DAILY_VERSION
+    # published days are never changed (even ones from before this rule, with repeats)
+    daily = {d: ks for d, ks in old_daily.items() if d <= today and all(k in all_keys for k in ks)}
+    used = {k for ks in daily.values() for k in ks}
+    games = []
+    if prev.get("games_version") == GAMES_VERSION:
+        for g in prev.get("games", []):
+            if all(k in active and k not in used for k in g):
+                games.append(g)
+                used.update(g)
+            else:
+                break          # numbering must stay stable: stop at the first game that can't be kept
+    lanes = {k: lane(k) for k in active}
     by_kind = defaultdict(list)
     for q in questions:
-        if not q.get("r"):
+        if q["key"] in active:
             by_kind[q["kind"]].append(q["key"])
-    target = max(len(old), GAMES_PER_CLUE * (len(questions) // DAILY_SIZE))
-    games, last_used = [], {}
-    for n in range(1, target + 1):
-        prev_game = old[n - 1] if n <= len(old) else None
-        if prev_game and all(k in keys for k in prev_game):
-            games.append(prev_game)
-            for k in prev_game:
-                last_used[k] = f"{n:06d}"
+
+    # daily: from yesterday (time zones) to a month ahead
+    base = datetime.date.today()
+    fresh_daily = {k for k in active if lanes[k] == "daily"} - used
+    reused = []
+    for n in range(-1, DAILY_AHEAD + 1):
+        day = (base + datetime.timedelta(days=n)).isoformat()
+        if day in daily:
             continue
-        games.append(deal(random.Random(f"reelrare-unlimited-v{GAMES_VERSION}-{n}"), by_kind, last_used, f"{n:06d}"))
-    return games
+        planned = old_daily.get(day)
+        rnd = random.Random("reelrare-v2-" + day)
+        if same_rules and planned and all(k in fresh_daily for k in planned):
+            pick = planned
+        else:
+            pick = deal(rnd, by_kind, fresh_daily, clash)
+        if pick is None:
+            # out of fresh daily clues: borrow unused Unlimited ones, then (last resort) the daily
+            # clues used longest ago. The build warns long before this happens.
+            spare = {k for k in active if lanes[k] == "unlimited"} - used
+            pick = deal(rnd, by_kind, fresh_daily | spare, clash)
+            if pick is None:
+                last = {}
+                for d in sorted(daily):
+                    for k in daily[d]:
+                        last[k] = d
+                oldest = sorted((k for k in active if lanes[k] == "daily"), key=lambda k: last.get(k, ""))
+                pick = deal(rnd, by_kind, set(oldest[: max(60, len(oldest) // 3)]), clash)
+                reused.append(day)
+        daily[day] = pick
+        used.update(pick)
+        fresh_daily -= set(pick)
+    if reused:
+        print(f"WARNING: no fresh clues left; {len(reused)} daily puzzles reuse old clues ({reused[0]} on)", flush=True)
+    left_days = len(fresh_daily) // DAILY_SIZE
+    print(f"daily: {len(fresh_daily)} fresh clues left after {max(daily)} = about {left_days} more days", flush=True)
+    if left_days < LOW_DAILY_WARNING:
+        print(f"WARNING: daily clues run out in about {left_days} days after {max(daily)}: add clues", flush=True)
+
+    # Unlimited: new games from Unlimited clues never used anywhere, until fewer than 7 are left
+    fresh_unl = {k for k in active if lanes[k] == "unlimited"} - used
+    n = len(games)
+    while True:
+        n += 1
+        pick = deal(random.Random(f"reelrare-unlimited-v{GAMES_VERSION}-{n}"), by_kind, fresh_unl, clash, relax=False)
+        if pick is None:
+            break
+        games.append(pick)
+        fresh_unl -= set(pick)
+    print(f"unlimited: {len(games)} games, {len(fresh_unl)} clues waiting for a full game", flush=True)
+    return dict(sorted(daily.items())), games
 
 
 def wiki_category_titles(category, depth=2):
@@ -716,19 +891,21 @@ SELECT ?f (COUNT(DISTINCT ?g) AS ?n) WHERE {{
     extra_ids = {}
     for k in sorted(films, key=lambda k: -films[k]["pop"]):
         extra_ids.setdefault(films[k]["label"], k)
-    missing = sorted({t for ts in EXTRA_ANSWERS.values() for t in ts if t not in extra_ids})
+    missing = sorted({t for d in (EXTRA_ANSWERS, ICONIC_GENRE_FILMS) for ts in d.values() for t in ts if t not in extra_ids})
     if missing:
         print("EXTRA_ANSWERS titles not in the film list:", missing, flush=True)
 
     def add(kind, text, film_ids, key):
-        film_ids = list(film_ids) + [extra_ids[t] for t in EXTRA_ANSWERS.get(text, []) if t in extra_ids]
+        film_ids = list(film_ids) + [extra_ids[t] for t in EXTRA_ANSWERS.get(text, []) + ICONIC_GENRE_FILMS.get(text, [])
+                                     if t in extra_ids]
         bad = BAD_ANSWERS.get(text, set())
         valid = [f for f in set(film_ids) if f in films and films[f]["label"] not in bad]
         mainstream = sum(1 for f in valid if films[f]["s"] >= MAINSTREAM_SITELINKS)
         # franchises and single studios are small but famous: a lower bar
         # small but famous sets (franchises, a hand-picked director, record-breakers) get a lower bar
         need_all, need_main = ((3, 3) if kind in ("director", "series") else
-                               (4, 3) if kind in ("series", "studio", "record", "people")
+                               (4, 3) if kind in ("series", "studio", "record", "people", "author")
+                               else (8, 6) if key.startswith(("title:word:", "country:lang:"))
                                else (MIN_ANSWERS, MIN_MAINSTREAM))
         if len(valid) >= need_all and mainstream >= need_main:
             questions.append({"kind": kind, "text": text, "ids": valid, "key": key})
@@ -776,6 +953,16 @@ SELECT DISTINCT ?f ?gl WHERE {{
     add("genre", "Name an animated movie",
         films_with("VALUES ?an { %s } ?f wdt:P31 ?an." % ANIMATED_TYPES) + by_genre_words(r"animat|anime"),
         "genre:animated")
+    # genre + decade ("Name a 90s horror movie"), by first release year
+    era_base, era_city, city_sets = {}, {}, {}
+    genre_qs = {q["text"]: q for q in questions if q["kind"] == "genre"}
+    for gtext, phrase in ERA_GENRES.items():
+        if gtext not in genre_qs:
+            continue
+        for d, words_ in ERA_DECADES:
+            key = f"era:{genre_qs[gtext]['key'].split(':', 1)[1]}:{d}"
+            add("era", f"Name {words_} {phrase}", [k for k in genre_qs[gtext]["ids"] if d <= films[k]["year"] < d + 10], key)
+            era_base[key] = gtext
 
     print("settings & subjects...", flush=True)
     place_ids = " ".join("wd:" + p for p, _ in SETTINGS)
@@ -812,12 +999,20 @@ SELECT ?f ?title WHERE {{
         set_in = {qid(r["f"]) for r in rows if qid(r["p"]) == p}
         if p in WIKI_CITY_CATEGORIES:
             set_in |= {en_titles[t] for t in wiki_category_titles(WIKI_CITY_CATEGORIES[p]) if t in en_titles}
+        set_in |= {extra_ids[t] for t in ICONIC_CITY_FILMS.get(p, []) if t in extra_ids}   # pinned films always count
         shot_in = {qid(r["f"]) for r in filmed if qid(r["p"]) == p}
         rx = re.compile(CITY_TITLE_WORDS[p], re.I) if p in CITY_TITLE_WORDS else None
         titled = {k for k, f in films.items() if rx and rx.search(f["label"])}
         for k in (shot_in - set_in - titled):
             weak_place.add(k + "|" + p)
         add("setting", f"Name a movie set in {name}", set_in | shot_in | titled, f"setting:{p}")
+        city_sets[p] = (name, {k for k in set_in | titled if k in films})      # combined clues use only "set in" (not "shot in")
+    for p in ERA_CITIES:
+        name, ids = city_sets[p]
+        for d, words_ in ERA_DECADES:
+            add("era", f"Name {words_} movie set in {name}", [k for k in ids if d <= films[k]["year"] < d + 10],
+                f"era:setting-{p}:{d}")
+            era_city[f"era:setting-{p}:{d}"] = p
     subj_ids = " ".join("wd:" + x for x, _ in SUBJECTS)
     rows = sparql(f"""
 SELECT DISTINCT ?f ?x WHERE {{
@@ -839,6 +1034,11 @@ SELECT DISTINCT ?f ?x WHERE {{
     add("subject", "Name a movie based on a comic book",
         films_with("?f wdt:P144 ?src. ?src wdt:P31/wdt:P279* wd:Q1004.") + by_genre_words(r"superhero|comic"),
         "subject:comics")
+    add("subject", "Name a movie based on a video game",
+        films_with("VALUES ?vg { wd:Q7889 wd:Q7058673 } ?f wdt:P144 ?src. ?src wdt:P31/wdt:P279* ?vg.")
+        + by_genre_words(r"video game"), "subject:videogame")
+    add("subject", "Name a movie based on a TV show",
+        films_with("?f wdt:P144 ?src. ?src wdt:P31/wdt:P279* wd:Q5398426."), "subject:tv")
 
     # Year clues: 2010 onward only (decades and single years)
     by_year, by_decade = defaultdict(list), defaultdict(list)
@@ -887,6 +1087,10 @@ SELECT DISTINCT ?f ?lang WHERE {{
             ok = set(COUNTRY_LANGUAGES[c])
             ids = [k for k in ids if langs[k] & ok]
         add("country", text, ids, f"country:{c}")
+    for lang_ids, text, key in LANGUAGE_CLUES:
+        # not English-language films with a few lines in it (2012, The Interview)
+        add("country", text, [k for k, ls in langs.items() if ls & set(lang_ids) and "Q1860" not in ls],
+            f"country:lang:{key}")
     add("country", "Name a foreign-language movie",
         films_with("?f wdt:P364 ?lang. FILTER(?lang != wd:Q1860) FILTER NOT EXISTS { ?f wdt:P364 wd:Q1860 }"),
         "country:foreign")
@@ -928,6 +1132,10 @@ SELECT DISTINCT ?f ?prev WHERE {{
     add("title", "Name a movie with an animal in the title", title_has(ANIMAL_WORDS), "title:animal")
     add("title", "Name a movie with a one-word title",
         [k for k, f in films.items() if len(words(f["label"])) == 1 and not f["label"][:1].isdigit()], "title:oneword")
+    for w in TITLE_WORDS:
+        # plurals count too ("Mean Girls" for "Girl")
+        add("title", f'Name a movie with the word "{w}" in the title', title_has([w.lower(), w.lower() + "s"]),
+            f"title:word:{w.lower()}")
     for L in LETTERS:
         # counts whether or not you include a leading "The", "A" or "An"
         ids = [k for k, f in films.items()
@@ -937,7 +1145,7 @@ SELECT DISTINCT ?f ?prev WHERE {{
     # --- a smaller set about big franchises and very famous names
     specs = [
         ("director", "wdt:P57", 30, "", "Name a movie directed by {}"),
-        ("actor", "wdt:P161|wdt:P725", 90, "?p wdt:P31 wd:Q5. FILTER NOT EXISTS {{ ?p wdt:P106 wd:Q82955 }}",
+        ("actor", "wdt:P161|wdt:P725", 70, "?p wdt:P31 wd:Q5. FILTER NOT EXISTS {{ ?p wdt:P106 wd:Q82955 }}",
          "Name a movie starring {}"),
         ("studio", "wdt:P272", 40, "", "Name a {} movie"),
         ("series", "wdt:P179", 15, "", "Name a {} movie"),
@@ -950,6 +1158,8 @@ SELECT DISTINCT ?f ?prev WHERE {{
         for k, g in rel.items():
             label = g["label"]
             if kind == "director" and label not in DIRECTORS:
+                continue
+            if kind == "actor" and g["s"] < 90 and label not in MORE_ACTORS:
                 continue
             if kind == "studio":
                 if label in STUDIOS and STUDIOS[label] in STUDIO_CLUES.values() or label in STUDIO_CLUES:
@@ -1060,7 +1270,12 @@ SELECT ?f ?s ?sl WHERE {{
         score = films[k]["pop"] - 400 * max(0, place_counts.get(k, 1) - 3)
         return score - (1500 if f"{k}|{city}" in weak_place else 0)
 
-    def genre_score(k):
+    iconic_genre = {text: {extra_ids[t]: n for n, t in enumerate(ts) if t in extra_ids}
+                    for text, ts in ICONIC_GENRE_FILMS.items()}
+
+    def genre_score(k, text=""):
+        if k in iconic_genre.get(text, {}):
+            return 10 ** 9 - iconic_genre[text][k]          # pinned to the top, in the listed order
         # small fixed deduction per extra genre tag (a percentage swamps the popularity scale)
         return films[k]["pop"] - 400 * max(0, genre_counts.get(k, 1) - 4)
 
@@ -1093,7 +1308,11 @@ SELECT DISTINCT ?f ?a ?cs ?charl WHERE {{
     def rank_key(q, j):
         k = order[j]
         if q["kind"] == "genre":
-            return (-genre_score(k), j)
+            return (-genre_score(k, q["text"]), j)
+        if q["key"] in era_city:
+            return (-place_score(k, era_city[q["key"]]), j)
+        if q["kind"] == "era":
+            return (-genre_score(k, era_base.get(q["key"], "")), j)
         if q["kind"] == "setting":
             return (-place_score(k, q["key"].split(":", 1)[1]), j)
         if q["kind"] == "actor":
@@ -1113,10 +1332,10 @@ SELECT DISTINCT ?f ?a ?cs ?charl WHERE {{
         ],
     }
     pick_oscars(out["questions"], out["films"])
-    out["daily"] = plan_daily(out["questions"])
+    out["daily"], out["games"] = plan_all(out["questions"])
     out["slots"] = DAILY_SLOTS
-    out["games"] = plan_games(out["questions"])
     out["games_version"] = GAMES_VERSION
+    out["daily_version"] = DAILY_VERSION
     with open(DATA_PATH, "w", encoding="utf-8") as fh:
         fh.write("window.REEL_DATA = ")
         json.dump(out, fh, ensure_ascii=False, separators=(",", ":"))
