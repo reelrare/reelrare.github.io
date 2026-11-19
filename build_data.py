@@ -341,7 +341,6 @@ SKIP_CLUES = {
     "Name a post-apocalyptic movie", "Name a revenge movie", "Name a movie about artificial intelligence",
     "Name a movie starring Sigourney Weaver", "Name a movie starring Gwyneth Paltrow",
     "Name a movie starring Halle Berry", "Name a movie starring Jeremy Renner", "Name a movie starring Cate Blanchett",
-    "Name a movie directed by Robert Zemeckis",
     "Name a movie starring Stan Lee",          # cameos only
     "Name a Disney Renaissance movie",         # Wikidata lists only 4 of the 10 films
     "Name a Dollars movie",                    # the "Dollars Trilogy" isn't a name most people know
@@ -349,7 +348,8 @@ SKIP_CLUES = {
 }
 # Only Disney is a studio most people can name films for.
 STUDIO_CLUES = {"Walt Disney Pictures": "Name a Disney movie", "Pixar": "Name a Pixar movie",
-                "Walt Disney Animation Studios": "Name a Disney animated movie"}
+                "Walt Disney Animation Studios": "Name a Disney animated movie",
+                "DreamWorks Animation": "Name a DreamWorks animated movie", "Studio Ghibli": "Name a Studio Ghibli movie"}
 # Answers Wikidata has wrong for a clue (title must match exactly)
 BAD_ANSWERS = {
     "Name a Pixar movie": {"Care Bears: Journey to Joke-a-lot", "Planes", "Planes: Fire & Rescue",
@@ -368,7 +368,12 @@ DIRECTORS = {
     "Clint Eastwood", "Ron Howard", "Michael Bay", "Zack Snyder", "M. Night Shyamalan", "Spike Lee",
     "Guy Ritchie", "Taika Waititi", "Sam Raimi", "J. J. Abrams", "James Gunn", "Hayao Miyazaki",
     "Francis Ford Coppola", "George Lucas",
+    "Robert Zemeckis", "John Hughes", "Rob Reiner", "Chris Columbus", "Jon Favreau", "Roland Emmerich",
+    "John Carpenter", "Wes Craven", "Ang Lee", "Oliver Stone", "Sergio Leone", "Akira Kurosawa",
+    "Billy Wilder", "Kathryn Bigelow", "Brad Bird", "Pete Docter",
 }
+# Directors who are also big stars: their "starring" clue stays too
+ACTOR_DIRECTORS = {"Clint Eastwood"}
 
 # Actors in 70-89 Wikipedias (below the usual bar of 90) who are household names anyway
 MORE_ACTORS = {
@@ -400,7 +405,12 @@ TITLE_WORDS = ["Love", "Man", "Night", "Day", "Star", "Dead", "King", "Girl", "B
                "Home", "Big", "Little", "Last", "Dark", "World", "Lost", "Story", "Time",
                "Death", "Heart", "Monster", "Ghost", "Dragon", "City", "Island", "Planet", "Secret", "Wild",
                "Good", "Bad", "Queen", "Prince", "Princess", "Dream", "Summer", "House", "Fire", "Sun",
-               "Moon", "Blood", "Kid", "Lady", "Return", "Rise", "Christmas", "Mission", "Game", "Baby"]
+               "Moon", "Blood", "Kid", "Lady", "Return", "Rise", "Christmas", "Mission", "Game", "Baby",
+               "Street", "Road", "River", "Sea", "Ocean", "Snow", "Ice", "Storm", "Water", "Money", "Doctor",
+               "Captain", "Miss", "Kill", "Murder", "Killer", "Fear", "Evil", "Hell", "Heaven", "Angel",
+               "Devil", "God", "Hotel", "School", "Club", "Party", "Wedding", "Family", "Father", "Mother",
+               "Brother", "Sister", "Son", "Daughter", "Friend", "Woman", "Men", "Never", "Forever", "Tomorrow",
+               "Legend", "Escape", "Hunt", "Rock", "Gun", "Space", "Earth", "Sky", "Paradise", "Shadow", "Light"]
 
 # Genre + decade clues ("Name a 90s horror movie"): genre clue text -> how it reads with a decade
 ERA_GENRES = {
@@ -414,7 +424,7 @@ ERA_GENRES = {
 }
 # City + decade ("Name a 90s movie set in New York City"). (Genre + city was tried: Wikidata's genre
 # tags are too loose for it, e.g. Mary Poppins as an "action movie set in London".)
-ERA_CITIES = ["Q60", "Q65", "Q84", "Q90", "Q1297", "Q62"]
+ERA_CITIES = ["Q60", "Q65", "Q84", "Q90", "Q1297", "Q62", "Q23768", "Q61", "Q100", "Q8652", "Q1490", "Q220"]
 ERA_DECADES = [(1980, "an 80s"), (1990, "a 90s"), (2000, "a 2000s"), (2010, "a 2010s"), (2020, "a 2020s")]
 
 # The films everyone thinks of first for a genre. They rank at the top (so they score as
@@ -443,15 +453,91 @@ ICONIC_GENRE_FILMS = {
     "Name a heist movie": ["Ocean's Eleven", "The Italian Job", "Inception", "Heat", "Baby Driver", "The Town", "Reservoir Dogs", "Now You See Me"],
 }
 
+# Topic clues: (text, key, Wikidata main-subject label regex, Wikidata genre label regex).
+# Both are matched against English labels, so "boxing film" and a film about "boxing" both count.
+TOPIC_CLUES = [
+    ("Name a sports movie", "sports", r"^(boxing|baseball|basketball|association football|american football|golf|horse racing|ice hockey|tennis|surfing|wrestling|mixed martial arts)$", r"sports? film|boxing film|football film|basketball film|baseball film"),
+    ("Name a boxing movie", "boxing", r"^boxing$", r"boxing film"),
+    ("Name a vampire movie", "vampire", r"^vampires?$", r"vampire"),
+    ("Name a ghost movie", "ghost", r"^ghosts?$|haunted house", r"ghost film"),
+    ("Name a werewolf movie", "werewolf", r"^werewol", r"werewolf"),
+    ("Name a witch movie", "witch", r"^witch|witchcraft", r"\bwitch"),
+    ("Name a martial arts movie", "martialarts", r"martial arts|kung fu|karate", r"martial arts|kung fu|ninja film"),
+    ("Name a buddy cop movie", "buddycop", None, r"buddy cop"),
+    ("Name a road trip movie", "roadtrip", r"road trip", r"road movie"),
+    ("Name a prison movie", "prison", r"^prison|imprisonment|prison escape", r"prison film"),
+    ("Name a courtroom movie", "courtroom", r"^trial$|courtroom", r"trial film|legal drama|courtroom"),
+    ("Name a detective movie", "detective", r"^detective|private investigator", r"detective film|whodunit"),
+    ("Name a survival movie", "survival", r"^survival$", r"survival film"),
+    ("Name a giant monster movie", "kaiju", r"kaiju|giant monster", r"kaiju|giant monster"),
+    ("Name a parody movie", "parody", None, r"parody|spoof"),
+    ("Name a movie with a time loop", "timeloop", r"time loop", r"time loop"),
+    ("Name a Vietnam War movie", "vietnam", r"vietnam war", r"vietnam war"),
+    ("Name a movie about the Holocaust", "holocaust", r"the holocaust", r"holocaust"),
+    ("Name a shark movie", "shark", r"^sharks?$|great white shark", r"\bshark"),
+    ("Name a body-swap movie", "bodyswap", r"body swap", r"body swap"),
+    ("Name a car movie", "cars", r"^cars?$|auto racing|street racing|motor racing|^automobile", r"car chase|auto racing|racing film"),
+    ("Name a movie with a robot", "robot", r"^robots?$|^android$", r"\brobot|mecha"),
+    ("Name a movie about a dog", "dog", r"^dogs?$", r"\bdog film"),
+    ("Name a movie about a cat", "cat", r"^cats?$", None),
+    ("Name a movie about a horse", "horse", r"^horses?$|horse racing", None),
+    ("Name a movie set in ancient Rome or Greece", "ancient", r"ancient rome|ancient greece|greek mythology|roman empire|roman republic", r"sword-and-sandal|peplum"),
+    ("Name a medieval movie", "medieval", r"middle ages|medieval|crusades|^knights?$", r"medieval"),
+    ("Name a dance movie", "dance", r"^danc", r"dance film"),
+    ("Name a movie about a musician", "musician", r"^musician|^singer|^rock band|musical group", r"music-themed"),
+    ("Name a high school movie", "highschool", r"high school", r"high school"),
+    ("Name a summer camp movie", "camp", r"summer camp", r"summer camp"),
+]
+ICONIC_TOPIC_FILMS = {
+    "Name a sports movie": ["Rocky", "Space Jam", "Remember the Titans", "The Blind Side", "Moneyball", "Creed", "Million Dollar Baby", "Field of Dreams", "Air", "Raging Bull"],
+    "Name a boxing movie": ["Rocky", "Creed", "Raging Bull", "Million Dollar Baby", "The Fighter", "Cinderella Man", "Southpaw", "Real Steel"],
+    "Name a vampire movie": ["Twilight", "Interview with the Vampire", "Bram Stoker's Dracula", "Blade", "Hotel Transylvania", "Nosferatu", "What We Do in the Shadows", "Let the Right One In", "Sinners"],
+    "Name a ghost movie": ["Ghostbusters", "The Sixth Sense", "Poltergeist", "Ghost", "Beetlejuice", "The Others", "Casper", "The Conjuring"],
+    "Name a werewolf movie": ["An American Werewolf in London", "The Twilight Saga: New Moon", "Teen Wolf", "The Wolfman", "The Howling", "Underworld"],
+    "Name a witch movie": ["Hocus Pocus", "The Witches", "Practical Magic", "The Craft", "The Witch", "Kiki's Delivery Service", "Wicked", "The Wizard of Oz"],
+    "Name a martial arts movie": ["Enter the Dragon", "Kung Fu Panda", "The Karate Kid", "Crouching Tiger, Hidden Dragon", "Kill Bill: Volume 1", "Ip Man", "Shang-Chi and the Legend of the Ten Rings", "Rush Hour", "Kung Fu Hustle"],
+    "Name a buddy cop movie": ["Lethal Weapon", "Rush Hour", "Bad Boys", "21 Jump Street", "The Nice Guys", "Hot Fuzz", "Men in Black", "The Other Guys", "Beverly Hills Cop"],
+    "Name a road trip movie": ["Thelma & Louise", "Little Miss Sunshine", "Dumb and Dumber", "Planes, Trains and Automobiles", "National Lampoon's Vacation", "Due Date", "Easy Rider", "Green Book", "Zombieland"],
+    "Name a prison movie": ["The Shawshank Redemption", "The Green Mile", "Escape from Alcatraz", "Con Air", "The Great Escape", "Cool Hand Luke", "Papillon", "Escape Plan"],
+    "Name a courtroom movie": ["A Few Good Men", "12 Angry Men", "To Kill a Mockingbird", "Legally Blonde", "My Cousin Vinny", "Philadelphia", "Primal Fear", "Kramer vs. Kramer", "Anatomy of a Fall"],
+    "Name a detective movie": ["Knives Out", "Sherlock Holmes", "Glass Onion: A Knives Out Mystery", "Murder on the Orient Express", "Chinatown", "The Nice Guys", "Seven"],
+    "Name a survival movie": ["Cast Away", "The Revenant", "127 Hours", "The Martian", "Life of Pi", "Alive", "The Grey", "Gravity"],
+    "Name a giant monster movie": ["Godzilla", "King Kong", "Pacific Rim", "Kong: Skull Island", "Cloverfield", "Godzilla Minus One", "Rampage", "Godzilla vs. Kong"],
+    "Name a parody movie": ["Airplane!", "Scary Movie", "Spaceballs", "The Naked Gun: From the Files of Police Squad!", "Hot Shots!", "Austin Powers: International Man of Mystery", "Young Frankenstein", "Shrek"],
+    "Name a movie with a time loop": ["Groundhog Day", "Edge of Tomorrow", "Happy Death Day", "Palm Springs", "Source Code", "Before I Fall", "Boss Level"],
+    "Name a Vietnam War movie": ["Apocalypse Now", "Platoon", "Full Metal Jacket", "Forrest Gump", "The Deer Hunter", "Good Morning, Vietnam", "We Were Soldiers", "Rambo: First Blood Part II"],
+    "Name a movie about the Holocaust": ["Schindler's List", "Life Is Beautiful", "The Pianist", "The Boy in the Striped Pajamas", "Jojo Rabbit", "The Zone of Interest"],
+    "Name a shark movie": ["Jaws", "The Meg", "Deep Blue Sea", "The Shallows", "47 Meters Down", "Jaws 2", "Open Water"],
+    "Name a body-swap movie": ["Freaky Friday", "Face/Off", "The Hot Chick", "The Change-Up", "Freaky", "Your Name", "13 Going on 30"],
+    "Name a car movie": ["Cars", "The Fast and the Furious", "Rush", "Ford v Ferrari", "Days of Thunder", "Talladega Nights: The Ballad of Ricky Bobby", "Baby Driver", "Gone in 60 Seconds", "Mad Max: Fury Road", "F1"],
+    "Name a movie with a robot": ["The Terminator", "WALL-E", "Big Hero 6", "I, Robot", "RoboCop", "Transformers", "Ex Machina", "The Iron Giant", "Real Steel", "The Wild Robot"],
+    "Name a movie about a dog": ["Marley & Me", "Beethoven", "101 Dalmatians", "Bolt", "Hachi: A Dog's Tale", "A Dog's Purpose", "Lady and the Tramp", "Isle of Dogs", "Turner & Hooch", "Air Bud"],
+    "Name a movie about a cat": ["Garfield: The Movie", "Puss in Boots", "The Aristocats", "Flow", "Cats", "That Darn Cat!"],
+    "Name a movie about a horse": ["War Horse", "Seabiscuit", "Black Beauty", "Spirit: Stallion of the Cimarron", "Secretariat", "The Black Stallion", "National Velvet", "Dreamer"],
+    "Name a movie set in ancient Rome or Greece": ["Gladiator", "300", "Troy", "Ben-Hur", "Spartacus", "Hercules", "Clash of the Titans", "Gladiator II", "Cleopatra"],
+    "Name a medieval movie": ["Braveheart", "A Knight's Tale", "Monty Python and the Holy Grail", "Kingdom of Heaven", "Robin Hood", "The Green Knight", "The Last Duel", "Shrek"],
+    "Name a dance movie": ["Dirty Dancing", "Step Up", "Footloose", "Save the Last Dance", "Billy Elliot", "Black Swan", "Saturday Night Fever", "Flashdance", "Magic Mike", "Stomp the Yard"],
+    "Name a movie about a musician": ["Bohemian Rhapsody", "Rocketman", "Walk the Line", "Ray", "Elvis", "A Star Is Born", "Whiplash", "School of Rock", "Almost Famous", "A Complete Unknown"],
+    "Name a high school movie": ["Mean Girls", "Clueless", "The Breakfast Club", "Superbad", "Grease", "10 Things I Hate About You", "Ferris Bueller's Day Off", "Easy A", "Booksmart", "Napoleon Dynamite"],
+    "Name a summer camp movie": ["The Parent Trap", "Friday the 13th", "Wet Hot American Summer", "Meatballs", "Moonrise Kingdom", "Heavyweights", "Friday the 13th Part 2"],
+    "Name an anime movie": ["Spirited Away", "Your Name", "Akira", "My Neighbor Totoro", "Princess Mononoke", "Howl's Moving Castle", "Demon Slayer: Kimetsu no Yaiba the Movie: Mugen Train", "Suzume", "Pokémon: The First Movie", "Ghost in the Shell"],
+}
+
 # Clues on one theme never share a game ("set in Las Vegas" + "about gambling", "Pixar" + "Toy Story").
 # Matched against clue text; clues whose best-known answers overlap a lot also never share a game.
 THEMES = {
     "vegas": r"las vegas|gambling|casino",
-    "war": r"\bwar\b|world war|cold war|\bspy\b|james bond|ian fleming|mission: impossible",
+    "war": r"\bwar\b|world war|cold war|\bspy\b|james bond|ian fleming|mission: impossible|holocaust",
     "hero": r"superhero|comic|marvel|\bdc\b|batman|spider-man|x-men|avengers|superman|stan lee|justice league",
-    "horror": r"horror|zombie|serial killer|outbreak|slasher|stephen king|monster",
-    "scifi": r"sci-fi|alien|time travel|dystopian|star wars|star trek|terminator|artificial|matrix|transformers|planet of the apes|set in space",
-    "kids": r"kids|animated|animation|pixar|disney|toy story|ice age|shrek|dreamworks|despicable|madagascar|miyazaki|kung fu panda|how to train|fairy tale|based on a toy|roald dahl|dr\. seuss",
+    "horror": r"horror|zombie|serial killer|outbreak|slasher|stephen king|monster|vampire|ghost|werewolf|witch|shark",
+    "sport": r"sport|boxing|car movie|horse",
+    "crimeplus": r"prison|courtroom|detective|buddy cop|heist",
+    "animal": r"\bdog\b|\bcat\b|horse|shark|animal",
+    "ancient": r"ancient|medieval|gladiator",
+    "school": r"high school|summer camp|coming-of-age|teen",
+    "road": r"road trip|car movie",
+    "scifi": r"sci-fi|alien|time travel|time loop|dystopian|star wars|star trek|terminator|artificial|matrix|transformers|planet of the apes|set in space|robot|giant monster|body-swap",
+    "kids": r"kids|animated|ghibli|animation|pixar|disney|toy story|ice age|shrek|dreamworks|despicable|madagascar|miyazaki|kung fu panda|how to train|fairy tale|based on a toy|roald dahl|dr\. seuss",
     "romance": r"romance|romantic|nicholas sparks|jane austen",
     "comedy": r"comedy|comedies",
     "fantasy": r"fantasy|lord of the rings|harry potter|rowling|tolkien|hobbit|wizarding|narnia|middle-earth",
@@ -460,9 +546,9 @@ THEMES = {
     "dino": r"dinosaur|jurassic",
     "xmas": r"christmas",
     "oscar": r"best picture|oscar|academy award|animated feature",
-    "music": r"musical",
+    "music": r"musical|musician|dance movie",
     "west": r"western",
-    "japan": r"japan|tokyo|miyazaki|anime|godzilla",
+    "japan": r"japan|tokyo|miyazaki|anime|godzilla|ghibli|giant monster|martial arts",
     "asia": r"korea|chin(a|ese)|hong kong",
     "spanish": r"spanish|mexic",
     "france": r"paris|french",
@@ -502,7 +588,7 @@ DAILY_SLOTS = [["genre", "subject", "era"], ["title", "letter", "record"], ["set
 
 
 # At most this many clues of one kind in a game (everything else: one each)
-KIND_CAP = {"genre": 2, "era": 2, "actor": 2}
+KIND_CAP = {"genre": 2, "era": 2, "actor": 2, "subject": 2, "title": 2}
 GAMES_VERSION = 4   # bump to rebuild every Unlimited game with new rules
 DAILY_VERSION = 2   # bump to re-plan every future daily puzzle with new rules
 # Every clue is used once, ever: in one daily puzzle or in one Unlimited game, never both.
@@ -891,21 +977,26 @@ SELECT ?f (COUNT(DISTINCT ?g) AS ?n) WHERE {{
     extra_ids = {}
     for k in sorted(films, key=lambda k: -films[k]["pop"]):
         extra_ids.setdefault(films[k]["label"], k)
-    missing = sorted({t for d in (EXTRA_ANSWERS, ICONIC_GENRE_FILMS) for ts in d.values() for t in ts if t not in extra_ids})
+    missing = sorted({t for d in (EXTRA_ANSWERS, ICONIC_GENRE_FILMS, ICONIC_TOPIC_FILMS) for ts in d.values() for t in ts
+                      if t not in extra_ids})
     if missing:
         print("EXTRA_ANSWERS titles not in the film list:", missing, flush=True)
 
     def add(kind, text, film_ids, key):
         film_ids = list(film_ids) + [extra_ids[t] for t in EXTRA_ANSWERS.get(text, []) + ICONIC_GENRE_FILMS.get(text, [])
-                                     if t in extra_ids]
+                                     + ICONIC_TOPIC_FILMS.get(text, []) if t in extra_ids]
         bad = BAD_ANSWERS.get(text, set())
         valid = [f for f in set(film_ids) if f in films and films[f]["label"] not in bad]
         mainstream = sum(1 for f in valid if films[f]["s"] >= MAINSTREAM_SITELINKS)
         # franchises and single studios are small but famous: a lower bar
         # small but famous sets (franchises, a hand-picked director, record-breakers) get a lower bar
-        need_all, need_main = ((3, 3) if kind in ("director", "series") else
+        need_all, need_main = ((3, 1) if kind == "director" else      # hand-picked famous names
+                               (3, 3) if kind == "series" else
                                (4, 3) if kind in ("series", "studio", "record", "people", "author")
-                               else (8, 6) if key.startswith(("title:word:", "country:lang:"))
+                               else (8, 5) if key.startswith("title:word:")
+                               else (8, 6) if key.startswith("country:lang:")
+                               # topic tags are patchy: a clue needs plenty of answers, or right ones get rejected
+                               else (30, 6) if text in ICONIC_TOPIC_FILMS
                                else (MIN_ANSWERS, MIN_MAINSTREAM))
         if len(valid) >= need_all and mainstream >= need_main:
             questions.append({"kind": kind, "text": text, "ids": valid, "key": key})
@@ -1034,6 +1125,19 @@ SELECT DISTINCT ?f ?x WHERE {{
     add("subject", "Name a movie based on a comic book",
         films_with("?f wdt:P144 ?src. ?src wdt:P31/wdt:P279* wd:Q1004.") + by_genre_words(r"superhero|comic"),
         "subject:comics")
+    topic_rows = sparql(f"""
+SELECT DISTINCT ?f ?xl WHERE {{
+  VALUES ?t {{ {FILM_TYPES} }}
+  ?f wdt:P31 ?t; wikibase:sitelinks ?s. FILTER(?s >= {MIN_SITELINKS})
+  ?f wdt:P921 ?x. ?x rdfs:label ?xl. FILTER(LANG(?xl) = "en")
+}}""")
+    for text, key, topic_rx, genre_rx in TOPIC_CLUES:
+        ids = by_genre_words(genre_rx) if genre_rx else []
+        if topic_rx:
+            rx = re.compile(topic_rx, re.I)
+            ids += [qid(r["f"]) for r in topic_rows if rx.search(r["xl"])]
+        add("subject", text, ids, f"subject:{key}")
+    add("genre", "Name an anime movie", films_with("?f wdt:P31 wd:Q20650540.") + by_genre_words(r"\banime\b"), "genre:anime")
     add("subject", "Name a movie based on a video game",
         films_with("VALUES ?vg { wd:Q7889 wd:Q7058673 } ?f wdt:P144 ?src. ?src wdt:P31/wdt:P279* ?vg.")
         + by_genre_words(r"video game"), "subject:videogame")
@@ -1099,6 +1203,10 @@ SELECT DISTINCT ?f ?lang WHERE {{
                    "FILTER(?amt >= 1000000000)"), "record:billion")
     add("record", "Name a movie over three hours long", films_with("?f wdt:P2047 ?m. FILTER(?m >= 180)"),
         "record:3h")
+    add("record", "Name a movie under 90 minutes long", films_with("?f wdt:P2047 ?m. FILTER(?m >= 60 && ?m < 90)"),
+        "record:under90")
+    add("record", "Name a movie over two and a half hours long", films_with("?f wdt:P2047 ?m. FILTER(?m >= 150)"),
+        "record:150")
     add("record", "Name a black-and-white movie", films_with("?f wdt:P462 wd:Q838368."), "record:bw")
     seq_rows = sparql(f"""
 SELECT DISTINCT ?f ?prev WHERE {{
@@ -1192,7 +1300,7 @@ SELECT DISTINCT ?f ?prev WHERE {{
     # Directors who cameo in their own films (Hitchcock, Tarantino) shouldn't get "starring" clues
     director_names = {q["text"].rsplit(" by ", 1)[1] for q in questions if q["kind"] == "director"}
     questions[:] = [q for q in questions
-                    if not (q["kind"] == "actor" and q["text"].rsplit("starring ", 1)[1] in director_names)]
+                    if not (q["kind"] == "actor" and q["text"].rsplit("starring ", 1)[1] in director_names - ACTOR_DIRECTORS)]
     # people/franchise clues need more famous answers than broad ones to count as mainstream
     def famous_enough(q):
         if q["kind"] in ("studio", "series"):
@@ -1271,7 +1379,7 @@ SELECT ?f ?s ?sl WHERE {{
         return score - (1500 if f"{k}|{city}" in weak_place else 0)
 
     iconic_genre = {text: {extra_ids[t]: n for n, t in enumerate(ts) if t in extra_ids}
-                    for text, ts in ICONIC_GENRE_FILMS.items()}
+                    for text, ts in {**ICONIC_GENRE_FILMS, **ICONIC_TOPIC_FILMS}.items()}
 
     def genre_score(k, text=""):
         if k in iconic_genre.get(text, {}):
@@ -1307,7 +1415,7 @@ SELECT DISTINCT ?f ?a ?cs ?charl WHERE {{
 
     def rank_key(q, j):
         k = order[j]
-        if q["kind"] == "genre":
+        if q["kind"] == "genre" or q["text"] in iconic_genre:
             return (-genre_score(k, q["text"]), j)
         if q["key"] in era_city:
             return (-place_score(k, era_city[q["key"]]), j)
